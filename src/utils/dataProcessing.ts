@@ -10,6 +10,122 @@ export interface ProcessedStation {
   displayName: string;
 }
 
+export interface ProcessedIncident {
+  id: string;
+  incidentType: string;
+  lat: number;
+  lon: number;
+  datetime: string;
+  category: string;
+  incidentTypeCategory: 'ems' | 'warning' | 'fire';
+}
+
+/**
+ * Processes raw incident data from CSV and extracts relevant information
+ * @param rawIncidents - Array of raw incident objects from CSV parsing
+ * @returns Array of processed incident objects with extracted data
+ */
+export function processIncidents(rawIncidents: any[]): ProcessedIncident[] {
+  return rawIncidents.map(incident => {
+    const incidentType = incident.incident_type || incident.type || '';
+    const incidentTypeCategory = categorizeIncidentType(incidentType);
+
+    return {
+      id: incident.incident_id || incident.id || '',
+      incidentType,
+      lat: parseFloat(incident.lat),
+      lon: parseFloat(incident.lon),
+      datetime: incident.datetime || '',
+      category: incident.category || '',
+      incidentTypeCategory
+    };
+  }).filter(incident => !isNaN(incident.lat) && !isNaN(incident.lon));
+}
+
+/**
+ * Categorizes incident type for icon selection
+ * @param incidentType - The incident type string
+ * @returns The category for icon selection
+ */
+export function categorizeIncidentType(incidentType: string): 'ems' | 'warning' | 'fire' {
+  if (incidentType.toLowerCase().includes('ems & rescue')) {
+    return 'ems';
+  } else if (incidentType.toLowerCase().includes('good intent call')) {
+    return 'warning';
+  } else {
+    return 'fire';
+  }
+}
+
+/**
+ * Creates popup content for incident markers
+ * @param incident - Processed incident object
+ * @returns HTML string for the popup
+ */
+export function createIncidentPopup(incident: ProcessedIncident): string {
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 200px;">
+      <b>${incident.incidentType}</b><br>
+      <span style="color: #666; font-size: 12px;">${incident.datetime}</span><br>
+      <span style="color: #666; font-size: 12px;">Category: ${incident.category}</span>
+    </div>
+  `;
+}
+
+/**
+ * Creates the HTML content for incident marker icons
+ * @param incident - Processed incident object
+ * @returns HTML string for the marker icon
+ */
+export function createIncidentIcon(incident: ProcessedIncident): string {
+  const iconHtml = getIncidentIconHtml(incident.incidentTypeCategory);
+
+  return `
+    <div style="
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+    ">
+      ${iconHtml}
+    </div>
+  `;
+}
+
+/**
+ * Gets the HTML for the incident icon based on category
+ * @param category - The incident type category
+ * @returns HTML string for the icon
+ */
+function getIncidentIconHtml(category: 'ems' | 'warning' | 'fire'): string {
+  switch (category) {
+    case 'ems':
+      return '🚑'; // Heart icon for EMS & Rescue
+    case 'warning':
+      return '⚠️'; // Warning icon for Good Intent Call
+    case 'fire':
+    default:
+      return '🔥'; // Fire icon for everything else
+  }
+}
+
+/**
+ * Gets the background color for incident icons
+ * @param category - The incident type category
+ * @returns Color string
+ */
+function getIncidentIconColor(category: 'ems' | 'warning' | 'fire'): string {
+  switch (category) {
+    case 'ems':
+      return '#dc2626'; // Red for EMS
+    case 'warning':
+      return '#f59e0b'; // Orange for warning
+    case 'fire':
+    default:
+      return '#7c2d12'; // Dark red for fire
+  }
+}
+
 /**
  * Processes raw station data from CSV and extracts relevant information
  * @param rawStations - Array of raw station objects from CSV parsing

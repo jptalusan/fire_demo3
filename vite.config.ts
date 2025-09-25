@@ -52,6 +52,8 @@
     build: {
       target: 'esnext',
       outDir: 'build',
+      // Most likely because of the data served, will adjust.
+      chunkSizeWarningLimit: 1000, 
     },
     server: {
       port: 3001,

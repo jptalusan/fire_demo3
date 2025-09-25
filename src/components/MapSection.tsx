@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { categoryColors } from '../config/categoryColors';
-import { processStations, createStationPopup, createStationIcon, ProcessedStation } from '../utils/dataProcessing';
+import { processStations, createStationPopup, createStationIcon, ProcessedStation, processIncidents, createIncidentPopup, createIncidentIcon, ProcessedIncident } from '../utils/dataProcessing';
+import config from '../config/mapConfig.json';
 
 interface FireStation {
   id: string;
@@ -28,7 +29,7 @@ interface MapSectionProps {
 }
 
 export function MapSection({ simulationResults, selectedIncidentFile, selectedStationFile }: MapSectionProps) {
-  const [incidents, setIncidents] = useState<any[]>([]);
+  const [incidents, setIncidents] = useState<ProcessedIncident[]>([]);
   const [stations, setStations] = useState<ProcessedStation[]>([]);
   const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
   const [markerLayer, setMarkerLayer] = useState<L.LayerGroup | null>(null);
@@ -50,7 +51,8 @@ export function MapSection({ simulationResults, selectedIncidentFile, selectedSt
         console.log('CSV text length:', csvText.length);
         const parsedIncidents = parseCSV(csvText);
         console.log('Parsed incidents:', parsedIncidents.length);
-        setIncidents(parsedIncidents.slice(0, 100)); // Limit to first 100 for performance
+        const processedIncidents = processIncidents(parsedIncidents.slice(0, 100)); // Process and limit to first 100
+        setIncidents(processedIncidents);
       } catch (error) {
         console.error('Error loading incidents:', error);
       }
@@ -102,11 +104,9 @@ export function MapSection({ simulationResults, selectedIncidentFile, selectedSt
 
   useEffect(() => {
     console.log('Initializing map');
-    const map = L.map('map').setView([40.7128, -74.0060], 13); // Default to NYC
+    const map = L.map('map').setView([config.map.defaultView.lat, config.map.defaultView.lng], config.map.defaultView.zoom);
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap contributors'
-    }).addTo(map);
+    L.tileLayer(config.map.tileLayer.url, config.map.tileLayer.options).addTo(map);
 
     console.log('Map initialized', map);
 
@@ -114,7 +114,7 @@ export function MapSection({ simulationResults, selectedIncidentFile, selectedSt
       navigator.geolocation.getCurrentPosition(
         (position) => {
           const { latitude, longitude } = position.coords;
-          map.setView([latitude, longitude], 13);
+          map.setView([latitude, longitude], config.map.defaultView.zoom);
           L.marker([latitude, longitude]).addTo(map).bindPopup('You are here').openPopup();
         },
         () => {
@@ -162,23 +162,17 @@ export function MapSection({ simulationResults, selectedIncidentFile, selectedSt
 
       // Add incident markers
       incidents.forEach(incident => {
-        const color = categoryColors[incident.category] || '#000000';
-        const marker = L.marker([parseFloat(incident.lat), parseFloat(incident.lon)], {
+        const marker = L.marker([incident.lat, incident.lon], {
           icon: L.divIcon({
             className: 'custom-marker incident-marker',
-            html: `<div style="background-color: ${color}; width: 20px; height: 20px; border-radius: 0;"></div>`,
-            iconSize: [20, 20],
-            iconAnchor: [10, 10]
+            html: createIncidentIcon(incident),
+            iconSize: [24, 24], // Updated size to match the new icon
+            iconAnchor: [12, 12] // Center the anchor
           })
         });
 
         marker.addTo(markerLayer);
-
-        marker.bindPopup(`
-          <b>Datetime:</b> ${incident.datetime}<br>
-          <b>Category:</b> ${incident.category}<br>
-          <b>Incident Type:</b> ${incident.incident_type}
-        `);
+        marker.bindPopup(createIncidentPopup(incident));
       });
     }
   }, [incidents, stations]);
