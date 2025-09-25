@@ -27,11 +27,12 @@ interface MapSectionProps {
   simulationResults?: any;
   selectedIncidentFile: string;
   selectedStationFile: string;
+  stations: ProcessedStation[];
+  onStationsChange: (stations: ProcessedStation[]) => void;
 }
 
-export function MapSection({ simulationResults, selectedIncidentFile, selectedStationFile }: MapSectionProps) {
+export function MapSection({ simulationResults, selectedIncidentFile, selectedStationFile, stations, onStationsChange }: MapSectionProps) {
   const [incidents, setIncidents] = useState<ProcessedIncident[]>([]);
-  const [stations, setStations] = useState<ProcessedStation[]>([]);
   const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
   const [markerLayer, setMarkerLayer] = useState<L.LayerGroup | null>(null);
   const [stationMarkers, setStationMarkers] = useState<Map<string, L.Marker>>(new Map()); // Track station markers
@@ -39,7 +40,7 @@ export function MapSection({ simulationResults, selectedIncidentFile, selectedSt
   // Handle station deletion
   const handleStationDelete = (stationId: string) => {
     // Remove from stations array
-    setStations(prevStations => prevStations.filter(station => station.id !== stationId));
+    onStationsChange(stations.filter(station => station.id !== stationId));
     
     // Remove marker from map
     const marker = stationMarkers.get(stationId);
@@ -90,7 +91,7 @@ export function MapSection({ simulationResults, selectedIncidentFile, selectedSt
   useEffect(() => {
     const loadStations = async () => {
       if (!selectedStationFile) {
-        setStations([]); // Clear stations if no file selected
+        onStationsChange([]); // Clear stations if no file selected
         return;
       }
 
@@ -105,7 +106,7 @@ export function MapSection({ simulationResults, selectedIncidentFile, selectedSt
         const parsedStations = parseCSV(csvText);
         console.log('Parsed stations:', parsedStations.length);
         const processedStations = processStations(parsedStations.slice(0, 100)); // Process and limit to first 100
-        setStations(processedStations);
+        onStationsChange(processedStations);
       } catch (error) {
         console.error('Error loading stations:', error);
       }
@@ -176,7 +177,20 @@ export function MapSection({ simulationResults, selectedIncidentFile, selectedSt
         const newStationMarkers = new Map<string, L.Marker>();
         stations.forEach(station => {
           const iconHtml = createStationIcon(station);
-          const marker = createDraggableStationMarker(station, iconHtml, defaultDragHandlers);
+          
+          // Create custom drag handlers that update the shared state
+          const customDragHandlers = {
+            ...defaultDragHandlers,
+            onStationUpdate: (updatedStation: ProcessedStation) => {
+              // Update the shared stations state when a marker is moved
+              const updatedStations = stations.map(s => 
+                s.id === updatedStation.id ? updatedStation : s
+              );
+              onStationsChange(updatedStations);
+            }
+          };
+          
+          const marker = createDraggableStationMarker(station, iconHtml, customDragHandlers);
 
           marker.addTo(markerLayer);
           marker.bindPopup(createDetailedStationPopup(station));

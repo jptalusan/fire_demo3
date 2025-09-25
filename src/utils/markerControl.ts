@@ -9,6 +9,7 @@ export interface DraggableMarkerOptions {
   onDrag?: (marker: L.Marker, station: ProcessedStation) => void;
   onDragEnd?: (marker: L.Marker, station: ProcessedStation, newLatLng: L.LatLng) => void;
   onDelete?: (stationId: string, marker: L.Marker) => void; // Added delete callback
+  onStationUpdate?: (updatedStation: ProcessedStation) => void; // Added station update callback
 }
 
 /**
@@ -46,6 +47,11 @@ export function makeDraggableMarker(
     // Update the station's coordinates
     station.lat = newLatLng.lat;
     station.lon = newLatLng.lng;
+    
+    // Call the station update callback if provided
+    if (options.onStationUpdate) {
+      options.onStationUpdate(station);
+    }
     
     if (options.onDragEnd) {
       options.onDragEnd(marker, station, newLatLng);

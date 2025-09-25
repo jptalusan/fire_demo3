@@ -6,6 +6,7 @@ import { Label } from './ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Separator } from './ui/separator';
 import { Play, Settings } from 'lucide-react';
+import { ProcessedStation } from '../utils/dataProcessing';
 
 interface ControlPanelProps {
   onRunSimulation: () => void;
@@ -15,6 +16,7 @@ interface ControlPanelProps {
   onSimulationSuccess?: (result: any) => void;
   selectedStationFile: string;
   onStationFileChange: (file: string) => void;
+  stations: ProcessedStation[];
 }
 
 export function ControlPanel({
@@ -25,6 +27,7 @@ export function ControlPanel({
   onSimulationSuccess,
   selectedStationFile,
   onStationFileChange,
+  stations,
 }: ControlPanelProps) {
   const [fireStationsFile, setFireStationsFile] = useState<File | null>(null);
   const [incidentsFile, setIncidentsFile] = useState<File | null>(null);
@@ -96,9 +99,37 @@ export function ControlPanel({
   const handleRunSimulation = async () => {
     try {
       setIsSimulating(true); // Disable the button and show loading state
+      
+      // Prepare the payload with current station positions and configuration
+      const payload = {
+        selectedIncidentFile,
+        selectedStationFile,
+        stations: stations.map(station => ({
+          id: station.id,
+          name: station.displayName,
+          lat: station.lat,
+          lng: station.lon,
+          apparatus: station.apparatus || []
+        })),
+        responseTime: parseInt(responseTime),
+        maxDistance: parseFloat(maxDistance),
+        options: {
+          coverageAnalysis: true,
+          responseTimeAnalysis: true,
+          resourceOptimization: false // Based on the checkbox state
+        }
+      };
+      
+      console.log('Sending simulation request with payload:', payload);
+      
       const response = await fetch('http://localhost:8000/run-simulation', {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload)
       });
+      
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }

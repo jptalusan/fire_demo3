@@ -9,6 +9,7 @@ import { Separator } from './components/ui/separator';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from './components/ui/tabs';
 import { Badge } from './components/ui/badge';
 import { Flame, Shield, MapIcon } from 'lucide-react';
+import { ProcessedStation } from './utils/dataProcessing';
 
 export default function App() {
   console.log('App rendering');
@@ -18,6 +19,7 @@ export default function App() {
   const [selectedIncidentFile, setSelectedIncidentFile] = useState<string>('');
   const [selectedStationFile, setSelectedStationFile] = useState<string>('');
   const [activeTab, setActiveTab] = useState('map');
+  const [stations, setStations] = useState<ProcessedStation[]>([]);
 
   console.log('App state:', { isSimulating, hasResults, selectedIncidentFile });
 
@@ -53,6 +55,7 @@ export default function App() {
     setSimulationResults(null);
     setHasResults(false);
     setSelectedIncidentFile('');
+    setStations([]); // Clear stations when clearing settings
   };
 
   return (
@@ -102,6 +105,7 @@ export default function App() {
             onSimulationSuccess={handleSimulationSuccess}
             selectedStationFile={selectedStationFile}
             onStationFileChange={setSelectedStationFile}
+            stations={stations}
           />
         </div>
 
@@ -149,7 +153,13 @@ export default function App() {
               <TabsContent value="map" className="h-full flex flex-col">
                 <Card className="h-full border-0 rounded-none flex-1">
                   <CardContent className="p-0 h-full flex-1 overflow-hidden">
-                    <MapSection simulationResults={simulationResults} selectedIncidentFile={selectedIncidentFile} selectedStationFile={selectedStationFile} />
+                    <MapSection 
+                      simulationResults={simulationResults} 
+                      selectedIncidentFile={selectedIncidentFile} 
+                      selectedStationFile={selectedStationFile} 
+                      stations={stations}
+                      onStationsChange={setStations}
+                    />
                   </CardContent>
                 </Card>
               </TabsContent>
