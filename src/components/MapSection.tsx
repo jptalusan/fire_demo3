@@ -2,8 +2,8 @@ import React, { useEffect, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { categoryColors } from '../config/categoryColors';
-import { processStations, createStationPopup, createStationIcon, ProcessedStation, processIncidents, createIncidentPopup, createIncidentIcon, ProcessedIncident } from '../utils/dataProcessing';
-import { createDraggableStationMarker, defaultDragHandlers } from '../utils/markerControl';
+import { processStations, createDetailedStationPopup, createStationIcon, ProcessedStation, processIncidents, createIncidentPopup, createIncidentIcon, ProcessedIncident } from '../utils/dataProcessing';
+import { createDraggableStationMarker, defaultDragHandlers, setupGlobalDeleteHandler } from '../utils/markerControl';
 import config from '../config/mapConfig.json';
 
 interface FireStation {
@@ -34,6 +34,31 @@ export function MapSection({ simulationResults, selectedIncidentFile, selectedSt
   const [stations, setStations] = useState<ProcessedStation[]>([]);
   const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
   const [markerLayer, setMarkerLayer] = useState<L.LayerGroup | null>(null);
+  const [stationMarkers, setStationMarkers] = useState<Map<string, L.Marker>>(new Map()); // Track station markers
+
+  // Handle station deletion
+  const handleStationDelete = (stationId: string) => {
+    // Remove from stations array
+    setStations(prevStations => prevStations.filter(station => station.id !== stationId));
+    
+    // Remove marker from map
+    const marker = stationMarkers.get(stationId);
+    if (marker && markerLayer) {
+      markerLayer.removeLayer(marker);
+      setStationMarkers(prev => {
+        const newMap = new Map(prev);
+        newMap.delete(stationId);
+        return newMap;
+      });
+    }
+    
+    console.log(`Deleted station with ID: ${stationId}`);
+  };
+
+  // Set up global delete handler
+  useEffect(() => {
+    setupGlobalDeleteHandler(handleStationDelete);
+  }, []);
 
   useEffect(() => {
     const loadIncidents = async () => {
@@ -142,20 +167,24 @@ export function MapSection({ simulationResults, selectedIncidentFile, selectedSt
       setMarkerLayer(newMarkerLayer);
     }
 
-    // Clear existing markers if markerLayer is initialized
-    if (markerLayer) {
-      markerLayer.clearLayers();
+      // Clear existing markers if markerLayer is initialized
+      if (markerLayer) {
+        markerLayer.clearLayers();
+        setStationMarkers(new Map()); // Clear tracked markers
 
-      // Add station markers first (so incidents appear on top) - now draggable
-      stations.forEach(station => {
-        const iconHtml = createStationIcon(station);
-        const marker = createDraggableStationMarker(station, iconHtml, defaultDragHandlers);
+        // Add station markers first (so incidents appear on top) - now draggable with detailed popups
+        const newStationMarkers = new Map<string, L.Marker>();
+        stations.forEach(station => {
+          const iconHtml = createStationIcon(station);
+          const marker = createDraggableStationMarker(station, iconHtml, defaultDragHandlers);
 
-        marker.addTo(markerLayer);
-        marker.bindPopup(createStationPopup(station));
-      });
-
-      // Add incident markers
+          marker.addTo(markerLayer);
+          marker.bindPopup(createDetailedStationPopup(station));
+          
+          // Track the marker
+          newStationMarkers.set(station.id, marker);
+        });
+        setStationMarkers(newStationMarkers);      // Add incident markers
       incidents.forEach(incident => {
         const marker = L.marker([incident.lat, incident.lon], {
           icon: L.divIcon({
@@ -170,7 +199,7 @@ export function MapSection({ simulationResults, selectedIncidentFile, selectedSt
         marker.bindPopup(createIncidentPopup(incident));
       });
     }
-  }, [incidents, stations]);
+  }, [incidents, stations, markerLayer]);
 
   return (
     <div className="h-full w-full bg-white relative">

@@ -8,6 +8,7 @@ export interface DraggableMarkerOptions {
   onDragStart?: (marker: L.Marker, station: ProcessedStation) => void;
   onDrag?: (marker: L.Marker, station: ProcessedStation) => void;
   onDragEnd?: (marker: L.Marker, station: ProcessedStation, newLatLng: L.LatLng) => void;
+  onDelete?: (stationId: string, marker: L.Marker) => void; // Added delete callback
 }
 
 /**
@@ -107,3 +108,15 @@ export const defaultDragHandlers: DraggableMarkerOptions = {
     console.log(`Station ${station.displayName} moved to: ${newLatLng.lat.toFixed(6)}, ${newLatLng.lng.toFixed(6)}`);
   }
 };
+
+/**
+ * Sets up the global delete handler for station markers
+ * @param onDelete - Function to call when a station is deleted
+ */
+export function setupGlobalDeleteHandler(onDelete: (stationId: string) => void): void {
+  (window as any).deleteStation = (stationId: string) => {
+    if (confirm('Are you sure you want to delete this station?')) {
+      onDelete(stationId);
+    }
+  };
+}

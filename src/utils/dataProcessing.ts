@@ -8,6 +8,7 @@ export interface ProcessedStation {
   lon: number;
   stationNumber: number;
   displayName: string;
+  apparatus: string[]; // Added apparatus list
 }
 
 export interface ProcessedIncident {
@@ -144,7 +145,8 @@ export function processStations(rawStations: any[]): ProcessedStation[] {
       lat: parseFloat(station.lat),
       lon: parseFloat(station.lon),
       stationNumber,
-      displayName: `Station ${stationNumber.toString().padStart(2, '0')}`
+      displayName: `Station ${stationNumber.toString().padStart(2, '0')}`,
+      apparatus: [`Engine ${stationNumber.toString().padStart(2, '0')}`] // Mock apparatus data
     };
   }).filter(station => !isNaN(station.lat) && !isNaN(station.lon));
 }
@@ -170,6 +172,70 @@ export function createStationPopup(station: ProcessedStation): string {
     <div style="font-family: Arial, sans-serif; max-width: 200px;">
       <b>${station.displayName}</b><br>
       <span style="color: #666; font-size: 12px;">${station.address}</span>
+    </div>
+  `;
+}
+
+/**
+ * Creates detailed popup content for station markers with apparatus and delete option
+ * @param station - Processed station object
+ * @param onDelete - Callback function for delete action
+ * @returns HTML string for the detailed popup
+ */
+export function createDetailedStationPopup(station: ProcessedStation, onDelete?: () => void): string {
+  const apparatusList = station.apparatus.map(app => `<li style="margin: 2px 0;">${app}</li>`).join('');
+  
+  return `
+    <div style="font-family: Arial, sans-serif; min-width: 250px; padding: 8px;">
+      <div style="border-bottom: 1px solid #ddd; padding-bottom: 8px; margin-bottom: 8px;">
+        <h3 style="margin: 0; color: #dc2626; font-size: 16px;">${station.displayName}</h3>
+        <p style="margin: 4px 0 0 0; color: #666; font-size: 12px;">${station.address}</p>
+      </div>
+      
+      <div style="margin-bottom: 12px;">
+        <h4 style="margin: 0 0 4px 0; font-size: 14px; color: #333;">Apparatus:</h4>
+        <ul style="margin: 0; padding-left: 16px; font-size: 13px; color: #555;">
+          ${apparatusList}
+        </ul>
+      </div>
+      
+      <div style="display: flex; gap: 8px; justify-content: flex-end;">
+        <button 
+          id="delete-station-${station.id}" 
+          onclick="window.deleteStation && window.deleteStation('${station.id}')"
+          style="
+            background-color: #dc2626;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+          "
+          onmouseover="this.style.backgroundColor='#b91c1c'"
+          onmouseout="this.style.backgroundColor='#dc2626'"
+        >
+          🗑️ Delete
+        </button>
+        <button 
+          onclick="this.closest('.leaflet-popup').querySelector('.leaflet-popup-close-button').click()"
+          style="
+            background-color: #6b7280;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+          "
+          onmouseover="this.style.backgroundColor='#4b5563'"
+          onmouseout="this.style.backgroundColor='#6b7280'"
+        >
+          Close
+        </button>
+      </div>
     </div>
   `;
 }
