@@ -115,7 +115,7 @@ export default function App() {
           <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
             <TabsList className="flex w-full justify-between bg-muted p-1 h-10">
               <TabsTrigger value="map" className="data-[state=active]:bg-background relative">
-                <span className={activeTab === 'map' ? 'bg-blue-100 text-blue-800 px-2 py-1 rounded-full' : ''}>
+                <span className={activeTab === 'map' ? 'bg-white text-gray-800 px-4 py-1 rounded-full' : ''}>
                   Map
                 </span>
               </TabsTrigger>
@@ -124,7 +124,7 @@ export default function App() {
                 disabled={!hasResults} 
                 className={`data-[state=active]:bg-background relative ${!hasResults ? "opacity-50 cursor-not-allowed" : ""}`}
               >
-                <span className={activeTab === 'statistics' ? 'bg-blue-100 text-blue-800 px-2 py-1 rounded-full' : ''}>
+                <span className={activeTab === 'statistics' ? 'bg-white text-gray-800 px-4 py-1 rounded-full' : ''}>
                   Statistics
                 </span>
               </TabsTrigger>
@@ -133,7 +133,7 @@ export default function App() {
                 disabled={!hasResults} 
                 className={`data-[state=active]:bg-background relative ${!hasResults ? "opacity-50 cursor-not-allowed" : ""}`}
               >
-                <span className={activeTab === 'simulation' ? 'bg-blue-100 text-blue-800 px-2 py-1 rounded-full' : ''}>
+                <span className={activeTab === 'simulation' ? 'bg-white text-gray-800 px-4 py-1 rounded-full' : ''}>
                   Simulation Results
                 </span>
               </TabsTrigger>
@@ -142,7 +142,7 @@ export default function App() {
                 disabled={!hasResults} 
                 className={`data-[state=active]:bg-background relative ${!hasResults ? "opacity-50 cursor-not-allowed" : ""}`}
               >
-                <span className={activeTab === 'plots' ? 'bg-blue-100 text-blue-800 px-2 py-1 rounded-full' : ''}>
+                <span className={activeTab === 'plots' ? 'bg-white text-gray-800 px-4 py-1 rounded-full' : ''}>
                   Plots
                 </span>
               </TabsTrigger>
