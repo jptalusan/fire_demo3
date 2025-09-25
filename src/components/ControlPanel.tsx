@@ -277,29 +277,31 @@ export function ControlPanel({
               </label>
             </div>
           </div>
-        </CardContent>
 
-        {/* Footer - Fixed */}
-        <div className="flex-shrink-0 p-4 border-t bg-card">
-          <Button
-            onClick={handleRunSimulation}
-            disabled={isSimulating}
-            className="w-full h-12"
-            size="lg"
-          >
-            {isSimulating ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                SIMULATING...
-              </>
-            ) : (
-              <>
-                <Play className="w-4 h-4 mr-2" />
-                RUN SIMULATION
-              </>
-            )}
-          </Button>
-        </div>
+          <Separator />
+
+          {/* Run Simulation Button */}
+          <div className="pt-4">
+            <Button
+              onClick={handleRunSimulation}
+              disabled={isSimulating}
+              className="w-full h-12"
+              size="lg"
+            >
+              {isSimulating ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  SIMULATING...
+                </>
+              ) : (
+                <>
+                  <Play className="w-4 h-4 mr-2" />
+                  RUN SIMULATION
+                </>
+              )}
+            </Button>
+          </div>
+        </CardContent>
       </Card>
     </div>
   );
