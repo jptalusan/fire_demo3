@@ -122,7 +122,7 @@ export function ControlPanel({
       
       console.log('Sending simulation request with payload:', payload);
       
-      const response = await fetch('http://localhost:8000/run-simulation', {
+      const response = await fetch('http://localhost:8000/run-simulation2', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

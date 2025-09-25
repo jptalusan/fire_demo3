@@ -21,6 +21,36 @@ export interface ProcessedIncident {
   incidentTypeCategory: 'ems' | 'warning' | 'fire';
 }
 
+export interface StationReport {
+  stationName: string;
+  travelTimeMean: number;
+  incidentCount: number;
+}
+
+/**
+ * Processes station report data from simulation results
+ * @param stationReportData - Array of station report objects from simulation
+ * @returns Array of processed station report objects
+ */
+export function processStationReport(stationReportData: any[]): StationReport[] {
+  if (!Array.isArray(stationReportData)) {
+    console.warn('Station report data is not an array:', stationReportData);
+    return [];
+  }
+
+  return stationReportData.map(reportItem => {
+    // Each item is an object with a single key (station ID) and value (metrics)
+    const stationName = Object.keys(reportItem)[0];
+    const metrics = reportItem[stationName];
+    
+    return {
+      stationName,
+      travelTimeMean: metrics['travel time mean'] || 0,
+      incidentCount: metrics['incident count'] || 0
+    };
+  }).filter(report => report.stationName && !isNaN(report.travelTimeMean));
+}
+
 /**
  * Processes raw incident data from CSV and extracts relevant information
  * @param rawIncidents - Array of raw incident objects from CSV parsing
