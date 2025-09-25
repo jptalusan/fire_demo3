@@ -1,0 +1,193 @@
+import React, { useState } from 'react';
+import { ControlPanel } from './components/ControlPanel';
+import { MapSection } from './components/MapSection';
+import { StatisticsTab } from './components/StatisticsTab';
+import { SimulationTab } from './components/SimulationTab';
+import { PlotsTab } from './components/PlotsTab';
+import { Card, CardContent } from './components/ui/card';
+import { Separator } from './components/ui/separator';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from './components/ui/tabs';
+import { Badge } from './components/ui/badge';
+import { Flame, Shield, MapIcon } from 'lucide-react';
+
+export default function App() {
+  console.log('App rendering');
+  const [isSimulating, setIsSimulating] = useState(false);
+  const [simulationResults, setSimulationResults] = useState<any>(null);
+  const [hasResults, setHasResults] = useState(false);
+  const [selectedIncidentFile, setSelectedIncidentFile] = useState<string>('');
+  const [activeTab, setActiveTab] = useState('map');
+
+  console.log('App state:', { isSimulating, hasResults, selectedIncidentFile });
+
+  const handleSimulationSuccess = (result: any) => {
+    console.log('Simulation success, enabling tabs...', result);
+    setSimulationResults(result);
+    setHasResults(true);
+  };
+
+  const handleRunSimulation = async () => {
+    console.log('Starting simulation...');
+    setIsSimulating(true);
+    setHasResults(false);
+    
+    // Simulate processing time
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Mock simulation results
+    const results = {
+      coverageAnalysis: { /* mock data */ },
+      responseTimeAnalysis: { /* mock data */ },
+      optimizationRecommendations: { /* mock data */ }
+    };
+    
+    console.log('Simulation complete, setting results...');
+    setSimulationResults(results);
+    setHasResults(true);
+    setIsSimulating(false);
+  };
+
+  const handleClearSettings = () => {
+    setIsSimulating(false);
+    setSimulationResults(null);
+    setHasResults(false);
+    setSelectedIncidentFile('');
+  };
+
+  return (
+    <div className="h-screen flex flex-col bg-background">
+      {/* Header */}
+      <header className="border-b bg-card">
+        <div className="px-6 py-3">
+          <div className="flex items-center justify-between">
+            {/* Left side - Title and Icons */}
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <Flame className="h-7 w-7 text-red-600" />
+                <Shield className="h-7 w-7 text-blue-600" />
+              </div>
+              <div>
+                <h1 className="text-xl">Fire Department Analytics Dashboard</h1>
+                <p className="text-sm text-muted-foreground">
+                  Visualization and optimization tool for fire station coverage and incident response
+                </p>
+              </div>
+            </div>
+            
+            {/* Right side - Features */}
+            <div className="flex items-center gap-4 text-sm text-muted-foreground">
+              <div className="flex items-center gap-1">
+                <MapIcon className="h-4 w-4" />
+                <span>Interactive mapping and analysis</span>
+              </div>
+              <Separator orientation="vertical" className="h-4" />
+              <span>Real-time incident processing</span>
+              <Separator orientation="vertical" className="h-4" />
+              <span>Coverage optimization</span>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <div className="flex-1 flex">
+        {/* Control Panel - 1/6 width */}
+        <div className="w-1/6 min-w-[300px] flex flex-col">
+          <ControlPanel 
+            onRunSimulation={handleRunSimulation}
+            selectedIncidentFile={selectedIncidentFile}
+            onIncidentFileChange={setSelectedIncidentFile}
+            onClearSettings={handleClearSettings}
+            onSimulationSuccess={handleSimulationSuccess}
+          />
+        </div>
+
+        {/* Main Content Area - 5/6 width */}
+        <div className="flex-1 flex flex-col">
+          {/* Main Tabs */}
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
+            <TabsList className="flex w-full justify-between bg-muted p-1 h-10">
+              <TabsTrigger value="map" className="data-[state=active]:bg-background relative">
+                <span className={activeTab === 'map' ? 'bg-blue-100 text-blue-800 px-2 py-1 rounded-full' : ''}>
+                  Map
+                </span>
+              </TabsTrigger>
+              <TabsTrigger 
+                value="statistics" 
+                disabled={!hasResults} 
+                className={`data-[state=active]:bg-background relative ${!hasResults ? "opacity-50 cursor-not-allowed" : ""}`}
+              >
+                <span className={activeTab === 'statistics' ? 'bg-blue-100 text-blue-800 px-2 py-1 rounded-full' : ''}>
+                  Statistics
+                </span>
+              </TabsTrigger>
+              <TabsTrigger 
+                value="simulation" 
+                disabled={!hasResults} 
+                className={`data-[state=active]:bg-background relative ${!hasResults ? "opacity-50 cursor-not-allowed" : ""}`}
+              >
+                <span className={activeTab === 'simulation' ? 'bg-blue-100 text-blue-800 px-2 py-1 rounded-full' : ''}>
+                  Simulation Results
+                </span>
+              </TabsTrigger>
+              <TabsTrigger 
+                value="plots" 
+                disabled={!hasResults} 
+                className={`data-[state=active]:bg-background relative ${!hasResults ? "opacity-50 cursor-not-allowed" : ""}`}
+              >
+                <span className={activeTab === 'plots' ? 'bg-blue-100 text-blue-800 px-2 py-1 rounded-full' : ''}>
+                  Plots
+                </span>
+              </TabsTrigger>
+            </TabsList>
+
+            <div className="flex-1 overflow-hidden">
+              {/* Map Tab */}
+              <TabsContent value="map" className="h-full flex flex-col">
+                <Card className="h-full border-0 rounded-none flex-1">
+                  <CardContent className="p-0 h-full flex-1 overflow-hidden">
+                    <MapSection simulationResults={simulationResults} selectedIncidentFile={selectedIncidentFile} />
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              {/* Statistics Tab */}
+              <TabsContent value="statistics" className="h-full">
+                <StatisticsTab simulationResults={simulationResults} />
+              </TabsContent>
+
+              {/* Simulation Results Tab */}
+              <TabsContent value="simulation" className="h-full">
+                <SimulationTab hasResults={hasResults} simulationResults={simulationResults} />
+              </TabsContent>
+
+              {/* Plots Tab */}
+              <TabsContent value="plots" className="h-full">
+                <PlotsTab />
+              </TabsContent>
+            </div>
+          </Tabs>
+        </div>
+      </div>
+
+      {/* Footer */}
+      <footer className="border-t bg-card px-6 py-3">
+        <div className="flex items-center justify-between text-sm text-muted-foreground">
+          <div className="flex items-center gap-4">
+            <span>© 2025 Fire Department Analytics</span>
+            <Separator orientation="vertical" className="h-4" />
+            <span>Version 1.0</span>
+          </div>
+          <div className="flex items-center gap-4">
+            <span>Last updated: {new Date().toLocaleDateString()}</span>
+            <Separator orientation="vertical" className="h-4" />
+            <span className={`flex items-center gap-1 ${isSimulating ? 'text-yellow-600' : hasResults ? 'text-green-600' : 'text-muted-foreground'}`}>
+              <div className={`w-2 h-2 rounded-full ${isSimulating ? 'bg-yellow-600 animate-pulse' : hasResults ? 'bg-green-600' : 'bg-gray-400'}`}></div>
+              {isSimulating ? 'Processing...' : hasResults ? 'Analysis Complete' : 'Ready'}
+            </span>
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
+}

@@ -1,0 +1,77 @@
+import React from 'react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
+import { AlertTriangle, CheckCircle } from 'lucide-react';
+
+interface SimulationTabProps {
+  hasResults: boolean;
+  simulationResults: any;
+}
+
+export function SimulationTab({ hasResults, simulationResults }: SimulationTabProps) {
+  return (
+    <div className="h-full overflow-auto space-y-4 p-4">
+      {hasResults ? (
+        <div className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <CheckCircle className="h-5 w-5 text-green-600" />
+                Simulation Complete
+              </CardTitle>
+              <CardDescription>
+                Analysis completed successfully at {new Date().toLocaleTimeString()}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <h4 className="mb-2">Optimization Recommendations</h4>
+                  <ul className="space-y-1 text-sm">
+                    <li>• Station 2 coverage could be improved by 15%</li>
+                    <li>• Consider adding resources to Brooklyn area</li>
+                    <li>• Current configuration handles 88% of incidents within target time</li>
+                    <li>• Peak hours: 2-4 PM show highest demand</li>
+                  </ul>
+                </div>
+                <div>
+                  <h4 className="mb-2">Scenario Analysis</h4>
+                  <ul className="space-y-1 text-sm">
+                    <li>• Best case response: 2.3 minutes average</li>
+                    <li>• Worst case response: 8.7 minutes average</li>
+                    <li>• Recommended station count: 4-5 stations</li>
+                    <li>• Resource utilization: 73% average</li>
+                  </ul>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Detailed Results</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-sm space-y-2">
+                <p>✓ Coverage analysis completed</p>
+                <p>✓ Response time optimization calculated</p>
+                <p>✓ Resource allocation analysis finished</p>
+                <p>✓ Risk assessment completed</p>
+                <p>→ Results exported to visualization layers</p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      ) : (
+        <Card className="h-full">
+          <CardContent className="flex items-center justify-center h-full">
+            <div className="text-center text-muted-foreground">
+              <AlertTriangle className="h-8 w-8 mx-auto mb-2" />
+              <p>No simulation results available</p>
+              <p className="text-sm">Run a simulation to see results here</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
