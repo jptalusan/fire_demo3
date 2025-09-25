@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { categoryColors } from '../config/categoryColors';
@@ -37,10 +37,14 @@ export function MapSection({ simulationResults, selectedIncidentFile, selectedSt
   const [markerLayer, setMarkerLayer] = useState<L.LayerGroup | null>(null);
   const [stationMarkers, setStationMarkers] = useState<Map<string, L.Marker>>(new Map()); // Track station markers
 
-  // Handle station deletion
-  const handleStationDelete = (stationId: string) => {
+  // Handle station deletion using useCallback to ensure we always have the latest state
+  const handleStationDelete = useCallback((stationId: string) => {
+    console.log(`Attempting to delete station with ID: ${stationId}`);
+    
     // Remove from stations array
-    onStationsChange(stations.filter(station => station.id !== stationId));
+    const filteredStations = stations.filter(station => station.id !== stationId);
+    console.log(`Filtered stations count: ${filteredStations.length} (was ${stations.length})`);
+    onStationsChange(filteredStations);
     
     // Remove marker from map
     const marker = stationMarkers.get(stationId);
@@ -51,15 +55,19 @@ export function MapSection({ simulationResults, selectedIncidentFile, selectedSt
         newMap.delete(stationId);
         return newMap;
       });
+      console.log(`Removed marker for station ${stationId} from map`);
+    } else {
+      console.log(`No marker found for station ${stationId}`);
     }
     
-    console.log(`Deleted station with ID: ${stationId}`);
-  };
+    console.log(`Successfully deleted station with ID: ${stationId}`);
+  }, [stations, stationMarkers, markerLayer, onStationsChange]);
 
-  // Set up global delete handler
+  // Set up global delete handler - update whenever the handler changes
   useEffect(() => {
+    console.log('Setting up global delete handler');
     setupGlobalDeleteHandler(handleStationDelete);
-  }, []);
+  }, [handleStationDelete]);
 
   useEffect(() => {
     const loadIncidents = async () => {
@@ -78,7 +86,7 @@ export function MapSection({ simulationResults, selectedIncidentFile, selectedSt
         console.log('CSV text length:', csvText.length);
         const parsedIncidents = parseCSV(csvText);
         console.log('Parsed incidents:', parsedIncidents.length);
-        const processedIncidents = processIncidents(parsedIncidents.slice(0, 100)); // Process and limit to first 100
+        const processedIncidents = processIncidents(parsedIncidents.slice(0, 2100)); // Process and limit to first 100
         setIncidents(processedIncidents);
       } catch (error) {
         console.error('Error loading incidents:', error);
