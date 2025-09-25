@@ -13,6 +13,8 @@ interface ControlPanelProps {
   onIncidentFileChange: (file: string) => void;
   onClearSettings: () => void;
   onSimulationSuccess?: (result: any) => void;
+  selectedStationFile: string;
+  onStationFileChange: (file: string) => void;
 }
 
 export function ControlPanel({
@@ -21,34 +23,63 @@ export function ControlPanel({
   onIncidentFileChange,
   onClearSettings,
   onSimulationSuccess,
+  selectedStationFile,
+  onStationFileChange,
 }: ControlPanelProps) {
   const [fireStationsFile, setFireStationsFile] = useState<File | null>(null);
   const [incidentsFile, setIncidentsFile] = useState<File | null>(null);
   const [responseTime, setResponseTime] = useState('5');
   const [maxDistance, setMaxDistance] = useState('10');
   const [incidentFiles, setIncidentFiles] = useState<string[]>([]);
+  const [stationFiles, setStationFiles] = useState<string[]>([]);
   const [isSimulating, setIsSimulating] = useState(false); // Removed duplicate prop and initialized state
+
+  // Utility function to handle API responses consistently
+  const handleApiResponse = (data: any, key: string) => {
+    console.log('Raw response data:', data); // Log the entire response object
+    const result = data[key]; // Extract the specified key from the response
+    console.log(`Extracted ${key}:`, result); // Debugging log
+    return result;
+  };
 
   useEffect(() => {
     const fetchIncidentFiles = async () => {
       try {
         const response = await fetch(
-          `http://localhost:8000/files`
+          `http://localhost:8000/get-incidents`
         ); // Use backend URL from .env
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
         const data = await response.json(); // Parse the JSON response
-        console.log('Raw response data:', data); // Log the entire response object
-        const files = data.files; // Extract the 'files' array from the response
-        console.log('Fetched incident files:', files); // Debugging log
-        setIncidentFiles(files);
+        const incidents = handleApiResponse(data, 'incidents'); // Extract 'incidents' from response
+        setIncidentFiles(incidents);
       } catch (error) {
         console.error('Error fetching incident files:', error);
       }
     };
 
     fetchIncidentFiles();
+  }, []);
+
+  useEffect(() => {
+    const fetchStationFiles = async () => {
+      try {
+        const response = await fetch(
+          `http://localhost:8000/get-stations`
+        ); // Fetch station files
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json(); // Parse the JSON response
+        const stations = handleApiResponse(data, 'stations'); // Extract 'stations' from response
+        setStationFiles(stations);
+      } catch (error) {
+        console.error('Error fetching station files:', error);
+      }
+    };
+
+    fetchStationFiles();
   }, []);
 
   const handleFileUpload = (
@@ -122,19 +153,22 @@ export function ControlPanel({
             <div>
               <Label>Fire Stations Data</Label>
               <div className="mt-2">
-                <Input
-                  type="file"
-                  accept=".csv,.json"
-                  onChange={(e) =>
-                    handleFileUpload(e.target.files?.[0] || null, 'stations')
-                  }
-                  className="cursor-pointer"
-                />
-                {fireStationsFile && (
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {fireStationsFile.name}
-                  </p>
-                )}
+                <select
+                  value={selectedStationFile}
+                  onChange={(e) => onStationFileChange(e.target.value)}
+                  className="w-full p-2 border rounded"
+                >
+                  <option value="">Select stations</option>
+                  {stationFiles?.length > 0 ? (
+                    stationFiles.map((file) => (
+                      <option key={file} value={file}>
+                        {file}
+                      </option>
+                    ))
+                  ) : (
+                    <option disabled>No files available</option>
+                  )}
+                </select>
               </div>
             </div>
 

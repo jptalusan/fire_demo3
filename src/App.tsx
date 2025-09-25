@@ -16,6 +16,7 @@ export default function App() {
   const [simulationResults, setSimulationResults] = useState<any>(null);
   const [hasResults, setHasResults] = useState(false);
   const [selectedIncidentFile, setSelectedIncidentFile] = useState<string>('');
+  const [selectedStationFile, setSelectedStationFile] = useState<string>('');
   const [activeTab, setActiveTab] = useState('map');
 
   console.log('App state:', { isSimulating, hasResults, selectedIncidentFile });
@@ -99,6 +100,8 @@ export default function App() {
             onIncidentFileChange={setSelectedIncidentFile}
             onClearSettings={handleClearSettings}
             onSimulationSuccess={handleSimulationSuccess}
+            selectedStationFile={selectedStationFile}
+            onStationFileChange={setSelectedStationFile}
           />
         </div>
 
@@ -146,7 +149,7 @@ export default function App() {
               <TabsContent value="map" className="h-full flex flex-col">
                 <Card className="h-full border-0 rounded-none flex-1">
                   <CardContent className="p-0 h-full flex-1 overflow-hidden">
-                    <MapSection simulationResults={simulationResults} selectedIncidentFile={selectedIncidentFile} />
+                    <MapSection simulationResults={simulationResults} selectedIncidentFile={selectedIncidentFile} selectedStationFile={selectedStationFile} />
                   </CardContent>
                 </Card>
               </TabsContent>

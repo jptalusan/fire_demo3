@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { categoryColors } from '../config/categoryColors';
+import { processStations, createStationPopup, createStationIcon, ProcessedStation } from '../utils/dataProcessing';
 
 interface FireStation {
   id: string;
@@ -23,10 +24,12 @@ interface Incident {
 interface MapSectionProps {
   simulationResults?: any;
   selectedIncidentFile: string;
+  selectedStationFile: string;
 }
 
-export function MapSection({ simulationResults, selectedIncidentFile }: MapSectionProps) {
+export function MapSection({ simulationResults, selectedIncidentFile, selectedStationFile }: MapSectionProps) {
   const [incidents, setIncidents] = useState<any[]>([]);
+  const [stations, setStations] = useState<ProcessedStation[]>([]);
   const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
   const [markerLayer, setMarkerLayer] = useState<L.LayerGroup | null>(null);
 
@@ -55,6 +58,33 @@ export function MapSection({ simulationResults, selectedIncidentFile }: MapSecti
 
     loadIncidents();
   }, [selectedIncidentFile]);
+
+  useEffect(() => {
+    const loadStations = async () => {
+      if (!selectedStationFile) {
+        setStations([]); // Clear stations if no file selected
+        return;
+      }
+
+      try {
+        console.log('Loading stations from:', `/data/${selectedStationFile}`);
+        const response = await fetch(`/data/${selectedStationFile}`);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const csvText = await response.text();
+        console.log('CSV text length:', csvText.length);
+        const parsedStations = parseCSV(csvText);
+        console.log('Parsed stations:', parsedStations.length);
+        const processedStations = processStations(parsedStations.slice(0, 100)); // Process and limit to first 100
+        setStations(processedStations);
+      } catch (error) {
+        console.error('Error loading stations:', error);
+      }
+    };
+
+    loadStations();
+  }, [selectedStationFile]);
 
   const parseCSV = (csvText: string) => {
     const lines = csvText.trim().split('\n');
@@ -111,24 +141,31 @@ export function MapSection({ simulationResults, selectedIncidentFile }: MapSecti
       setMarkerLayer(newMarkerLayer);
     }
 
-    // Clear only incident markers if markerLayer is initialized
+    // Clear existing markers if markerLayer is initialized
     if (markerLayer) {
-      // Remove only markers with the "incident" class
-      markerLayer.eachLayer((layer) => {
-        if (layer instanceof L.Marker) {
-          const icon = layer.getElement();
-          if (icon && icon.classList.contains('incident-marker')) {
-            markerLayer.removeLayer(layer);
-          }
-        }
+      markerLayer.clearLayers();
+
+      // Add station markers first (so incidents appear on top)
+      stations.forEach(station => {
+        const marker = L.marker([station.lat, station.lon], {
+          icon: L.divIcon({
+            className: 'custom-marker station-marker',
+            html: createStationIcon(station),
+            iconSize: [24, 24], // Updated size to match the new icon
+            iconAnchor: [12, 12] // Center the anchor
+          })
+        });
+
+        marker.addTo(markerLayer);
+        marker.bindPopup(createStationPopup(station));
       });
 
-      // Add new incident markers
+      // Add incident markers
       incidents.forEach(incident => {
         const color = categoryColors[incident.category] || '#000000';
         const marker = L.marker([parseFloat(incident.lat), parseFloat(incident.lon)], {
           icon: L.divIcon({
-            className: 'custom-marker incident-marker', // Add "incident-marker" class
+            className: 'custom-marker incident-marker',
             html: `<div style="background-color: ${color}; width: 20px; height: 20px; border-radius: 0;"></div>`,
             iconSize: [20, 20],
             iconAnchor: [10, 10]
@@ -144,7 +181,7 @@ export function MapSection({ simulationResults, selectedIncidentFile }: MapSecti
         `);
       });
     }
-  }, [incidents]);
+  }, [incidents, stations]);
 
   return (
     <div className="h-full w-full bg-white relative">
