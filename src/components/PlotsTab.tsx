@@ -1,14 +1,35 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, ReferenceLine } from 'recharts';
+import { processStationReport, StationReport } from '../utils/dataProcessing';
 
-export function PlotsTab() {
-  const responseTimeData = [
-    { station: 'Station 1', avgTime: 4.2, target: 5 },
-    { station: 'Station 2', avgTime: 6.1, target: 5 },
-    { station: 'Station 3', avgTime: 3.8, target: 5 },
-    { station: 'Station 4', avgTime: 5.3, target: 5 }
-  ];
+interface PlotsTabProps {
+  simulationResults?: any;
+}
+
+export function PlotsTab({ simulationResults }: PlotsTabProps) {
+  // Build response time chart data from simulation station_report
+  const stationReports: StationReport[] = simulationResults?.station_report
+    ? processStationReport(simulationResults.station_report)
+    : [];
+
+  // TODO: 5 is hard coded, put it in some config.
+  const targetMinutes: number = simulationResults?.target_response_minutes ?? 5;
+
+  const responseTimeData = stationReports
+    .slice()
+    .sort((a, b) => parseFloat(a.stationName) - parseFloat(b.stationName))
+    .map((r) => {
+      // Extract just the number from "Station XX" format
+      const match = r.stationName.match(/\d+/);
+      const stationNum = match ? match[0] : r.stationName;
+      return {
+        station: stationNum,
+        avgTime: Number((r.travelTimeMean / 60).toFixed(2)), // seconds -> minutes
+        target: targetMinutes,
+        incidents: r.incidentCount,
+      };
+    });
 
   const incidentTypeData = [
     { type: 'Medical Emergency', count: 580, color: '#4ECDC4' },
@@ -28,26 +49,30 @@ export function PlotsTab() {
   return (
     <div className="h-full overflow-auto space-y-4 p-4">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Response Time Chart */}
+        {/* Response Time Chart (from simulation results) */}
         <Card>
           <CardHeader>
             <CardTitle>Average Response Times</CardTitle>
             <CardDescription>
-              Response times by fire station vs target time
+              Response time (minutes) per station from last simulation
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={responseTimeData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="station" />
-                <YAxis label={{ value: 'Minutes', angle: -90, position: 'insideLeft' }} />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="avgTime" fill="#8884d8" name="Avg Response Time" />
-                <Bar dataKey="target" fill="#82ca9d" name="Target Time" />
-              </BarChart>
-            </ResponsiveContainer>
+            {responseTimeData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={responseTimeData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="station" interval={0} angle={0} textAnchor="middle" height={60} tickMargin={8} />
+                  <YAxis label={{ value: 'Minutes', angle: -90, position: 'insideLeft' }} />
+                  <Tooltip formatter={(value: any, name: any) => [value, name === 'avgTime' ? 'Avg Time (min)' : name === 'target' ? 'Target (min)' : name]} />
+                  <ReferenceLine y={targetMinutes} stroke="#82ca9d" strokeDasharray="4 4" label={`Target ${targetMinutes}m`} />
+                  <Bar dataKey="avgTime" fill="#8884d8" name="Avg Time (min)">
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="text-sm text-muted-foreground">Run a simulation to see response time plots.</div>
+            )}
           </CardContent>
         </Card>
 

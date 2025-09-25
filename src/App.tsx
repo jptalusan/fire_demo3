@@ -175,8 +175,8 @@ export default function App() {
               </TabsContent>
 
               {/* Plots Tab */}
-              <TabsContent value="plots" className="h-full">
-                <PlotsTab />
+                <TabsContent value="plots" className="h-full">
+                  <PlotsTab simulationResults={simulationResults} />
               </TabsContent>
             </div>
           </Tabs>
