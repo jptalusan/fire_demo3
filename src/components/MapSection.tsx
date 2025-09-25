@@ -3,6 +3,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { categoryColors } from '../config/categoryColors';
 import { processStations, createStationPopup, createStationIcon, ProcessedStation, processIncidents, createIncidentPopup, createIncidentIcon, ProcessedIncident } from '../utils/dataProcessing';
+import { createDraggableStationMarker, defaultDragHandlers } from '../utils/markerControl';
 import config from '../config/mapConfig.json';
 
 interface FireStation {
@@ -145,16 +146,10 @@ export function MapSection({ simulationResults, selectedIncidentFile, selectedSt
     if (markerLayer) {
       markerLayer.clearLayers();
 
-      // Add station markers first (so incidents appear on top)
+      // Add station markers first (so incidents appear on top) - now draggable
       stations.forEach(station => {
-        const marker = L.marker([station.lat, station.lon], {
-          icon: L.divIcon({
-            className: 'custom-marker station-marker',
-            html: createStationIcon(station),
-            iconSize: [24, 24], // Updated size to match the new icon
-            iconAnchor: [12, 12] // Center the anchor
-          })
-        });
+        const iconHtml = createStationIcon(station);
+        const marker = createDraggableStationMarker(station, iconHtml, defaultDragHandlers);
 
         marker.addTo(markerLayer);
         marker.bindPopup(createStationPopup(station));
