@@ -169,6 +169,7 @@ export default function App() {
                       simulationResults={simulationResults} 
                       selectedIncidentFile={selectedIncidentFile} 
                       selectedStationFile={selectedStationFile} 
+                      selectedServiceZoneFile={selectedServiceZoneFile}
                       stations={stations}
                       onStationsChange={setStations}
                     />

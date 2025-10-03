@@ -27,14 +27,23 @@ interface MapSectionProps {
   simulationResults?: any;
   selectedIncidentFile: string;
   selectedStationFile: string;
+  selectedServiceZoneFile: string;
   stations: ProcessedStation[];
   onStationsChange: (stations: ProcessedStation[]) => void;
 }
 
-export function MapSection({ simulationResults, selectedIncidentFile, selectedStationFile, stations, onStationsChange }: MapSectionProps) {
+export function MapSection({ 
+  simulationResults, 
+  selectedIncidentFile, 
+  selectedStationFile, 
+  selectedServiceZoneFile,
+  stations, 
+  onStationsChange 
+}: MapSectionProps) {
   const [incidents, setIncidents] = useState<ProcessedIncident[]>([]);
   const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
   const [markerLayer, setMarkerLayer] = useState<L.LayerGroup | null>(null);
+  const [serviceZoneLayer, setServiceZoneLayer] = useState<L.LayerGroup | null>(null);
   const [stationMarkers, setStationMarkers] = useState<Map<string, L.Marker>>(new Map()); // Track station markers
 
   // Handle station deletion using useCallback to ensure we always have the latest state
@@ -69,6 +78,65 @@ export function MapSection({ simulationResults, selectedIncidentFile, selectedSt
     setupGlobalDeleteHandler(handleStationDelete);
   }, [handleStationDelete]);
 
+  // Load service zones (GeoJSON polygons)
+  useEffect(() => {
+    const loadServiceZones = async () => {
+      if (!selectedServiceZoneFile || !serviceZoneLayer) {
+        // Clear service zones if no file selected
+        if (serviceZoneLayer) {
+          serviceZoneLayer.clearLayers();
+        }
+        return;
+      }
+
+      try {
+        console.log('Loading service zones from:', `/data/${selectedServiceZoneFile}`);
+        const response = await fetch(`/data/${selectedServiceZoneFile}`);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const geoJsonData = await response.json();
+        console.log('GeoJSON data loaded:', geoJsonData);
+
+        // Clear existing service zone layers
+        serviceZoneLayer.clearLayers();
+
+        // Add GeoJSON to the service zone layer
+        const geoJsonLayer = L.geoJSON(geoJsonData, {
+          style: (feature) => {
+            // Style for the polygons
+            return {
+              fillColor: '#3388ff',
+              weight: 2,
+              opacity: 1,
+              color: '#3388ff',
+              dashArray: '3',
+              fillOpacity: 0.2
+            };
+          },
+          onEachFeature: (feature, layer) => {
+            // Add popup with zone information if available
+            if (feature.properties) {
+              const popupContent = Object.entries(feature.properties)
+                .map(([key, value]) => `<strong>${key}:</strong> ${value}`)
+                .join('<br>');
+              layer.bindPopup(`<div>${popupContent}</div>`);
+            }
+          }
+        });
+
+        geoJsonLayer.addTo(serviceZoneLayer);
+        console.log('Service zones added to map');
+
+      } catch (error) {
+        console.error('Error loading service zones:', error);
+      }
+    };
+
+    loadServiceZones();
+  }, [selectedServiceZoneFile, serviceZoneLayer]);
+
   useEffect(() => {
     const loadIncidents = async () => {
       if (!selectedIncidentFile) {
@@ -86,7 +154,7 @@ export function MapSection({ simulationResults, selectedIncidentFile, selectedSt
         console.log('CSV text length:', csvText.length);
         const parsedIncidents = parseCSV(csvText);
         console.log('Parsed incidents:', parsedIncidents.length);
-        const processedIncidents = processIncidents(parsedIncidents.slice(0, 500)); // Process and limit to first 100
+        const processedIncidents = processIncidents(parsedIncidents.slice(0, 500)); // Process and limit to first 500
         setIncidents(processedIncidents);
       } catch (error) {
         console.error('Error loading incidents:', error);
@@ -161,6 +229,10 @@ export function MapSection({ simulationResults, selectedIncidentFile, selectedSt
     // Store map instance in state
     setMapInstance(map);
 
+    // Initialize service zone layer
+    const newServiceZoneLayer = L.layerGroup().addTo(map);
+    setServiceZoneLayer(newServiceZoneLayer);
+
     // Cleanup on unmount
     return () => {
       map.remove();
@@ -206,21 +278,23 @@ export function MapSection({ simulationResults, selectedIncidentFile, selectedSt
           // Track the marker
           newStationMarkers.set(station.id, marker);
         });
-        setStationMarkers(newStationMarkers);      // Add incident markers
-      incidents.forEach(incident => {
-        const marker = L.marker([incident.lat, incident.lon], {
-          icon: L.divIcon({
-            className: 'custom-marker incident-marker',
-            html: createIncidentIcon(incident),
-            iconSize: [24, 24], // Updated size to match the new icon
-            iconAnchor: [12, 12] // Center the anchor
-          })
-        });
+        setStationMarkers(newStationMarkers);
 
-        marker.addTo(markerLayer);
-        marker.bindPopup(createIncidentPopup(incident));
-      });
-    }
+        // Add incident markers
+        incidents.forEach(incident => {
+          const marker = L.marker([incident.lat, incident.lon], {
+            icon: L.divIcon({
+              className: 'custom-marker incident-marker',
+              html: createIncidentIcon(incident),
+              iconSize: [24, 24], // Updated size to match the new icon
+              iconAnchor: [12, 12] // Center the anchor
+            })
+          });
+
+          marker.addTo(markerLayer);
+          marker.bindPopup(createIncidentPopup(incident));
+        });
+      }
   }, [incidents, stations, markerLayer]);
 
   return (
