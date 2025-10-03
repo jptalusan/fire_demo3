@@ -65,9 +65,9 @@ export function PlotsTab({ simulationResults }: PlotsTabProps) {
                   <XAxis dataKey="station" interval={0} angle={0} textAnchor="middle" height={60} tickMargin={8} />
                   <YAxis label={{ value: 'Minutes', angle: -90, position: 'insideLeft' }} />
                   <Tooltip formatter={(value: any, name: any) => [value, name === 'avgTime' ? 'Avg Time (min)' : name === 'target' ? 'Target (min)' : name]} />
-                  <ReferenceLine y={targetMinutes} stroke="#82ca9d" strokeDasharray="4 4" label={`Target ${targetMinutes}m`} />
                   <Bar dataKey="avgTime" fill="#8884d8" name="Avg Time (min)">
                   </Bar>
+                  <ReferenceLine y={targetMinutes} stroke="#82ca9d" strokeDasharray="4 4" label={`Target ${targetMinutes}m`} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (

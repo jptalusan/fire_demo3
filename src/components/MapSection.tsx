@@ -86,7 +86,7 @@ export function MapSection({ simulationResults, selectedIncidentFile, selectedSt
         console.log('CSV text length:', csvText.length);
         const parsedIncidents = parseCSV(csvText);
         console.log('Parsed incidents:', parsedIncidents.length);
-        const processedIncidents = processIncidents(parsedIncidents.slice(0, 2100)); // Process and limit to first 100
+        const processedIncidents = processIncidents(parsedIncidents.slice(0, 500)); // Process and limit to first 100
         setIncidents(processedIncidents);
       } catch (error) {
         console.error('Error loading incidents:', error);

@@ -5,8 +5,9 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Separator } from './ui/separator';
-import { Play, Settings } from 'lucide-react';
+import { Play, Settings, ChevronLeft, ChevronRight } from 'lucide-react';
 import { ProcessedStation } from '../utils/dataProcessing';
+import { DISPATCH_POLICIES, DispatchPolicy } from '../config/dispatchPolicies';
 
 interface ControlPanelProps {
   onRunSimulation: () => void;
@@ -17,6 +18,12 @@ interface ControlPanelProps {
   selectedStationFile: string;
   onStationFileChange: (file: string) => void;
   stations: ProcessedStation[];
+  selectedDispatchPolicy?: string;
+  onDispatchPolicyChange?: (policy: string) => void;
+  selectedServiceZoneFile?: string;
+  onServiceZoneFileChange?: (file: string) => void;
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
 export function ControlPanel({
@@ -28,6 +35,12 @@ export function ControlPanel({
   selectedStationFile,
   onStationFileChange,
   stations,
+  selectedDispatchPolicy = 'nearest',
+  onDispatchPolicyChange,
+  selectedServiceZoneFile = '',
+  onServiceZoneFileChange,
+  isCollapsed = false,
+  onToggleCollapse,
 }: ControlPanelProps) {
   const [fireStationsFile, setFireStationsFile] = useState<File | null>(null);
   const [incidentsFile, setIncidentsFile] = useState<File | null>(null);
@@ -35,6 +48,7 @@ export function ControlPanel({
   const [maxDistance, setMaxDistance] = useState('10');
   const [incidentFiles, setIncidentFiles] = useState<string[]>([]);
   const [stationFiles, setStationFiles] = useState<string[]>([]);
+  const [serviceZoneFiles, setServiceZoneFiles] = useState<string[]>([]);
   const [isSimulating, setIsSimulating] = useState(false); // Removed duplicate prop and initialized state
 
   // Utility function to handle API responses consistently
@@ -85,6 +99,30 @@ export function ControlPanel({
     fetchStationFiles();
   }, []);
 
+  useEffect(() => {
+    const fetchServiceZoneFiles = async () => {
+      try {
+        // For now, use the same endpoint as stations - you may need to create a separate endpoint
+        const response = await fetch(
+          `http://localhost:8000/get-shapes`
+        ); // This might need to be changed to a service zones endpoint
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        const zones = handleApiResponse(data, 'shapes'); // This might need to be 'zones' or similar
+        setServiceZoneFiles(zones);
+      } catch (error) {
+        console.error('Error fetching service zone files:', error);
+      }
+    };
+
+    // Only fetch service zone files if firebeats policy is selected
+    if (selectedDispatchPolicy === 'firebeats') {
+      fetchServiceZoneFiles();
+    }
+  }, [selectedDispatchPolicy]);
+
   const handleFileUpload = (
     file: File | null,
     type: 'stations' | 'incidents'
@@ -104,6 +142,8 @@ export function ControlPanel({
       const payload = {
         selectedIncidentFile,
         selectedStationFile,
+        selectedServiceZoneFile: selectedDispatchPolicy === 'firebeats' ? selectedServiceZoneFile : undefined,
+        dispatchPolicy: selectedDispatchPolicy,
         stations: stations.map(station => ({
           id: station.id,
           name: station.displayName,
@@ -154,18 +194,31 @@ export function ControlPanel({
   // Tab enabling logic should be handled in the parent component
 
   return (
-    <div className="h-full bg-card border-r flex flex-col">
+    <div className={`h-full bg-card border-r flex flex-col transition-all duration-300 ${isCollapsed ? 'w-12' : 'w-80'}`}>
       <Card className="h-full border-0 rounded-none flex flex-col">
         {/* Header - Fixed */}
         <CardHeader className="flex-shrink-0 pb-4">
-          <CardTitle className="flex items-center gap-2">
-            <Settings className="w-5 h-5" />
-            Simulation Controls
+          <CardTitle className="flex items-center justify-between">
+            {!isCollapsed && (
+              <div className="flex items-center gap-2">
+                <Settings className="w-5 h-5" />
+                Simulation Controls
+              </div>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onToggleCollapse}
+              className="p-1 h-8 w-8"
+            >
+              {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+            </Button>
           </CardTitle>
         </CardHeader>
 
-        {/* Scrollable Content */}
-        <CardContent className="flex-1 overflow-y-auto space-y-6">
+        {/* Scrollable Content - Only show when not collapsed */}
+        {!isCollapsed && (
+          <CardContent className="flex-1 overflow-y-auto space-y-6">
           {/* Clear Settings Button */}
           <div className="space-y-4">
             <Button
@@ -175,6 +228,28 @@ export function ControlPanel({
             >
               Clear Settings
             </Button>
+          </div>
+
+          <Separator />
+
+          {/* Dispatch Policy */}
+          <div className="space-y-4">
+            <div>
+              <Label>Dispatch Policy</Label>
+              <div className="mt-2">
+                <select
+                  value={selectedDispatchPolicy}
+                  onChange={(e) => onDispatchPolicyChange?.(e.target.value)}
+                  className="w-full p-2 border rounded"
+                >
+                  {DISPATCH_POLICIES.map((policy) => (
+                    <option key={policy.id} value={policy.id}>
+                      {policy.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
           </div>
 
           <Separator />
@@ -224,6 +299,31 @@ export function ControlPanel({
                 </select>
               </div>
             </div>
+
+            {/* Service Zones Data - Only show when Firebeats policy is selected */}
+            {selectedDispatchPolicy === 'firebeats' && (
+              <div>
+                <Label>Service Zones Data</Label>
+                <div className="mt-2">
+                  <select
+                    value={selectedServiceZoneFile}
+                    onChange={(e) => onServiceZoneFileChange?.(e.target.value)}
+                    className="w-full p-2 border rounded"
+                  >
+                    <option value="">Select service zones</option>
+                    {serviceZoneFiles?.length > 0 ? (
+                      serviceZoneFiles.map((file) => (
+                        <option key={file} value={file}>
+                          {file}
+                        </option>
+                      ))
+                    ) : (
+                      <option disabled>No files available</option>
+                    )}
+                  </select>
+                </div>
+              </div>
+            )}
           </div>
 
           <Separator />
@@ -301,7 +401,8 @@ export function ControlPanel({
               )}
             </Button>
           </div>
-        </CardContent>
+          </CardContent>
+        )}
       </Card>
     </div>
   );

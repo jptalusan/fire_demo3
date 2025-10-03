@@ -18,8 +18,11 @@ export default function App() {
   const [hasResults, setHasResults] = useState(false);
   const [selectedIncidentFile, setSelectedIncidentFile] = useState<string>('');
   const [selectedStationFile, setSelectedStationFile] = useState<string>('');
+  const [selectedDispatchPolicy, setSelectedDispatchPolicy] = useState<string>('nearest');
+  const [selectedServiceZoneFile, setSelectedServiceZoneFile] = useState<string>('');
   const [activeTab, setActiveTab] = useState('map');
   const [stations, setStations] = useState<ProcessedStation[]>([]);
+  const [isControlPanelCollapsed, setIsControlPanelCollapsed] = useState(false);
 
   console.log('App state:', { isSimulating, hasResults, selectedIncidentFile });
 
@@ -55,6 +58,9 @@ export default function App() {
     setSimulationResults(null);
     setHasResults(false);
     setSelectedIncidentFile('');
+    setSelectedStationFile('');
+    setSelectedDispatchPolicy('nearest');
+    setSelectedServiceZoneFile('');
     setStations([]); // Clear stations when clearing settings
   };
 
@@ -95,8 +101,8 @@ export default function App() {
 
       {/* Main Content */}
       <div className="flex-1 flex">
-        {/* Control Panel - 1/6 width */}
-        <div className="w-1/6 min-w-[300px] flex flex-col">
+        {/* Control Panel - Collapsible */}
+        <div className="flex-shrink-0">
           <ControlPanel 
             onRunSimulation={handleRunSimulation}
             selectedIncidentFile={selectedIncidentFile}
@@ -105,7 +111,13 @@ export default function App() {
             onSimulationSuccess={handleSimulationSuccess}
             selectedStationFile={selectedStationFile}
             onStationFileChange={setSelectedStationFile}
+            selectedDispatchPolicy={selectedDispatchPolicy}
+            onDispatchPolicyChange={setSelectedDispatchPolicy}
+            selectedServiceZoneFile={selectedServiceZoneFile}
+            onServiceZoneFileChange={setSelectedServiceZoneFile}
             stations={stations}
+            isCollapsed={isControlPanelCollapsed}
+            onToggleCollapse={() => setIsControlPanelCollapsed(!isControlPanelCollapsed)}
           />
         </div>
 
