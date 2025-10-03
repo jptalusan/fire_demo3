@@ -9,6 +9,7 @@ export interface ProcessedStation {
   stationNumber: number;
   displayName: string;
   apparatus: string[]; // Added apparatus list
+  serviceZone?: string; // Optional service zone for firebeats
 }
 
 export interface ProcessedIncident {
@@ -269,6 +270,72 @@ export function createDetailedStationPopup(station: ProcessedStation, onDelete?:
     </div>
   `;
 }
+
+/**
+ * Creates a popup for assigning a service zone to a station (for Firebeats dispatch policy).
+ * @param station - The processed station object.
+ * @returns HTML string for the popup.
+ */
+export function createFirebeatsStationPopup(station: ProcessedStation): string {
+  const serviceZone = station.serviceZone || '';
+
+  return `
+    <div style="font-family: Arial, sans-serif; min-width: 250px; padding: 8px;">
+      <div style="border-bottom: 1px solid #ddd; padding-bottom: 8px; margin-bottom: 8px;">
+        <h3 style="margin: 0; color: #dc2626; font-size: 16px;">${station.displayName}</h3>
+        <p style="margin: 4px 0 0 0; color: #666; font-size: 12px;">${station.address}</p>
+      </div>
+      
+      <div style="margin-bottom: 12px;">
+        <h4 style="margin: 0 0 4px 0; font-size: 14px; color: #333;">Service Zone:</h4>
+        <input 
+          type="text" 
+          id="service-zone-input-${station.id}" 
+          value="${serviceZone}" 
+          placeholder="N/A"
+          style="width: 100%; box-sizing: border-box; padding: 6px; border: 1px solid #ccc; border-radius: 4px;"
+        />
+      </div>
+      
+      <div style="display: flex; gap: 8px; justify-content: flex-end;">
+        <button 
+          onclick="
+            const input = document.getElementById('service-zone-input-${station.id}');
+            if (input && window.firebeatsUpdateServiceZone) {
+              window.firebeatsUpdateServiceZone('${station.id}', input.value);
+            }
+          "
+          style="
+            background-color: #2563eb;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+          "
+        >
+          Update
+        </button>
+        <button 
+          onclick="this.closest('.leaflet-popup-content-wrapper').parentNode.querySelector('.leaflet-popup-close-button').click()"
+          style="
+            background-color: #6b7280;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+          "
+        >
+          Close
+        </button>
+      </div>
+    </div>
+  `;
+}
+
 
 /**
  * Creates the HTML content for station marker icons

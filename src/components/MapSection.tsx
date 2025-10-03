@@ -2,9 +2,17 @@ import React, { useEffect, useState, useCallback } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { categoryColors } from '../config/categoryColors';
-import { processStations, createDetailedStationPopup, createStationIcon, ProcessedStation, processIncidents, createIncidentPopup, createIncidentIcon, ProcessedIncident } from '../utils/dataProcessing';
+import { processStations, createDetailedStationPopup, createFirebeatsStationPopup, createStationIcon, ProcessedStation, processIncidents, createIncidentPopup, createIncidentIcon, ProcessedIncident } from '../utils/dataProcessing';
 import { createDraggableStationMarker, defaultDragHandlers, setupGlobalDeleteHandler } from '../utils/markerControl';
 import config from '../config/mapConfig.json';
+
+// Extend the Window interface to include our custom global functions
+declare global {
+  interface Window {
+    deleteStation?: (stationId: string) => void;
+    firebeatsUpdateServiceZone?: (stationId: string, zone: string) => void;
+  }
+}
 
 interface FireStation {
   id: string;
@@ -27,6 +35,7 @@ interface MapSectionProps {
   simulationResults?: any;
   selectedIncidentFile: string;
   selectedStationFile: string;
+  selectedDispatchPolicy: string; // Add this line
   selectedServiceZoneFile: string;
   stations: ProcessedStation[];
   onStationsChange: (stations: ProcessedStation[]) => void;
@@ -36,6 +45,7 @@ export function MapSection({
   simulationResults, 
   selectedIncidentFile, 
   selectedStationFile, 
+  selectedDispatchPolicy, // Add this line
   selectedServiceZoneFile,
   stations, 
   onStationsChange 
@@ -45,6 +55,49 @@ export function MapSection({
   const [markerLayer, setMarkerLayer] = useState<L.LayerGroup | null>(null);
   const [serviceZoneLayer, setServiceZoneLayer] = useState<L.LayerGroup | null>(null);
   const [stationMarkers, setStationMarkers] = useState<Map<string, L.Marker>>(new Map()); // Track station markers
+
+  // Point in polygon check
+  const isPointInPolygon = (point: L.LatLng, polygon: L.LatLng[]) => {
+    let isInside = false;
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+      const xi = polygon[i].lat, yi = polygon[i].lng;
+      const xj = polygon[j].lat, yj = polygon[j].lng;
+      const intersect = ((yi > point.lng) !== (yj > point.lng))
+          && (point.lat < (xj - xi) * (point.lng - yi) / (yj - yi) + xi);
+      if (intersect) isInside = !isInside;
+    }
+    return isInside;
+  };
+
+  // Handle manual service zone update from popup
+  const handleServiceZoneUpdate = useCallback((stationId: string, newZone: string) => {
+    console.log(`Updating service zone for station ${stationId} to ${newZone}`);
+    const updatedStations = stations.map(station => 
+      station.id === stationId ? { ...station, serviceZone: newZone } : station
+    );
+    onStationsChange(updatedStations);
+
+    // Force popup to refresh its content after update
+    const marker = stationMarkers.get(stationId);
+    const updatedStation = updatedStations.find(s => s.id === stationId);
+    if (marker && updatedStation) {
+      // Re-bind the popup with the new station data to show the change immediately
+      marker.unbindPopup();
+      marker.bindPopup(createFirebeatsStationPopup(updatedStation));
+      if (marker.isPopupOpen()) {
+        marker.openPopup();
+      }
+    }
+  }, [stations, onStationsChange, stationMarkers]);
+
+  // Set up global handler for service zone updates
+  useEffect(() => {
+    window.firebeatsUpdateServiceZone = handleServiceZoneUpdate;
+    return () => {
+      delete window.firebeatsUpdateServiceZone;
+    };
+  }, [handleServiceZoneUpdate]);
+
 
   // Handle station deletion using useCallback to ensure we always have the latest state
   const handleStationDelete = useCallback((stationId: string) => {
@@ -262,18 +315,88 @@ export function MapSection({
           const customDragHandlers = {
             ...defaultDragHandlers,
             onStationUpdate: (updatedStation: ProcessedStation) => {
+              let finalStation = updatedStation;
+              let assignedZone = ''; // Keep track of the assigned zone
+              // If firebeats, check if station is in a service zone
+              if (selectedDispatchPolicy === 'firebeats' && serviceZoneLayer) {
+                const point = L.latLng(updatedStation.lat, updatedStation.lon);
+
+                serviceZoneLayer.eachLayer(layer => {
+                  if (layer instanceof L.GeoJSON) {
+                    layer.eachLayer(featureLayer => {
+                      if (featureLayer instanceof L.Polygon) {
+                        const latLngs = (featureLayer as L.Polygon).getLatLngs();
+                        const polygon = Array.isArray(latLngs[0]) ? latLngs[0] as L.LatLng[] : latLngs as L.LatLng[];
+                        if (isPointInPolygon(point, polygon)) {
+                          // Get zone name from properties - try common property names
+                          const props = (featureLayer as any).feature?.properties;
+                          console.log('Found polygon properties:', props); // Debug log
+                          
+                          // Try various common property names for zone identification
+                          assignedZone = props?.name || 
+                                      props?.FIRE_BEAT || 
+                                      props?.zone_name || 
+                                      props?.zone || 
+                                      props?.id || 
+                                      props?.ID || 
+                                      props?.ZONE || 
+                                      props?.fire_beat ||
+                                      props?.firebeat ||
+                                      props?.beat ||
+                                      props?.district ||
+                                      props?.area ||
+                                      `Zone ${props?.FID || props?.OBJECTID || 'Unknown'}`;
+                          
+                          console.log('Assigned zone:', assignedZone); // Debug log
+                        }
+                      }
+                    });
+                  }
+                });
+                
+                if (assignedZone) {
+                  finalStation = { ...updatedStation, serviceZone: assignedZone };
+                }
+              }
+
               // Update the shared stations state when a marker is moved
               const updatedStations = stations.map(s => 
-                s.id === updatedStation.id ? updatedStation : s
+                s.id === finalStation.id ? finalStation : s
               );
               onStationsChange(updatedStations);
+
+              // Add visual feedback on drag-and-drop
+              if (assignedZone) {
+                const marker = stationMarkers.get(finalStation.id);
+                if (marker) {
+                  marker.bindTooltip(`Assigned to: ${assignedZone}`, { permanent: true, direction: 'top' }).openTooltip();
+                  setTimeout(() => {
+                    marker.closeTooltip().unbindTooltip();
+                  }, 2000); // Tooltip disappears after 2 seconds
+                }
+              }
             }
           };
           
           const marker = createDraggableStationMarker(station, iconHtml, customDragHandlers);
 
           marker.addTo(markerLayer);
-          marker.bindPopup(createDetailedStationPopup(station));
+          
+          // Bind the correct popup based on dispatch policy
+          const popupContent = selectedDispatchPolicy === 'firebeats'
+            ? createFirebeatsStationPopup(station)
+            : createDetailedStationPopup(station);
+          
+          marker.bindPopup(popupContent);
+
+          // Refresh popup content when it opens to ensure it's up-to-date
+          marker.on('popupopen', () => {
+            const freshStationData = stations.find(s => s.id === station.id) || station;
+            const freshPopupContent = selectedDispatchPolicy === 'firebeats'
+              ? createFirebeatsStationPopup(freshStationData)
+              : createDetailedStationPopup(freshStationData);
+            marker.setPopupContent(freshPopupContent);
+          });
           
           // Track the marker
           newStationMarkers.set(station.id, marker);
@@ -295,7 +418,7 @@ export function MapSection({
           marker.bindPopup(createIncidentPopup(incident));
         });
       }
-  }, [incidents, stations, markerLayer]);
+  }, [incidents, stations, markerLayer, selectedDispatchPolicy, serviceZoneLayer, onStationsChange]);
 
   return (
     <div className="h-full w-full bg-white relative">

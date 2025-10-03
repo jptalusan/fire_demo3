@@ -18,6 +18,7 @@ interface ControlPanelProps {
   selectedStationFile: string;
   onStationFileChange: (file: string) => void;
   stations: ProcessedStation[];
+  onStationsChange: (stations: ProcessedStation[]) => void; // Add this line
   selectedDispatchPolicy?: string;
   onDispatchPolicyChange?: (policy: string) => void;
   selectedServiceZoneFile?: string;
@@ -35,6 +36,7 @@ export function ControlPanel({
   selectedStationFile,
   onStationFileChange,
   stations,
+  onStationsChange, // Add this line
   selectedDispatchPolicy = 'nearest',
   onDispatchPolicyChange,
   selectedServiceZoneFile = '',
@@ -149,7 +151,8 @@ export function ControlPanel({
           name: station.displayName,
           lat: station.lat,
           lng: station.lon,
-          apparatus: station.apparatus || []
+          apparatus: station.apparatus || [],
+          serviceZone: station.serviceZone, // Include serviceZone in the payload
         })),
         responseTime: parseInt(responseTime),
         maxDistance: parseFloat(maxDistance),

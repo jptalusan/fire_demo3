@@ -116,6 +116,7 @@ export default function App() {
             selectedServiceZoneFile={selectedServiceZoneFile}
             onServiceZoneFileChange={setSelectedServiceZoneFile}
             stations={stations}
+            onStationsChange={setStations} // Pass the setter function
             isCollapsed={isControlPanelCollapsed}
             onToggleCollapse={() => setIsControlPanelCollapsed(!isControlPanelCollapsed)}
           />
@@ -169,6 +170,7 @@ export default function App() {
                       simulationResults={simulationResults} 
                       selectedIncidentFile={selectedIncidentFile} 
                       selectedStationFile={selectedStationFile} 
+                      selectedDispatchPolicy={selectedDispatchPolicy} // Pass dispatch policy
                       selectedServiceZoneFile={selectedServiceZoneFile}
                       stations={stations}
                       onStationsChange={setStations}
