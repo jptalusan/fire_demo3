@@ -466,7 +466,7 @@ export function ControlPanel({
   // Tab enabling logic should be handled in the parent component
 
   return (
-    <div className={`h-full bg-card border-r flex flex-col transition-all duration-300 ${isCollapsed ? 'w-12' : 'w-80'}`}>
+    <div className={`h-full bg-card border-r flex flex-col transition-all duration-300 ${isCollapsed ? 'w-12' : 'w-80'} flex-shrink-0`}>
       <Card className="h-full border-0 rounded-none flex flex-col">
         {/* Header - Fixed */}
         <CardHeader className="flex-shrink-0 pb-4">
@@ -787,16 +787,20 @@ export function ControlPanel({
                 </>
               )}
             </Button>
-            {!isFormValid() && !isSimulating && (
-              <div className="text-xs text-gray-500 text-center">
-                <div className="text-red-500 font-medium">
-                  Missing:
-                  {getMissingFields().map((field, index) => (
-                    <p key={index} className="mt-1">{field}</p>
-                  ))}
+            
+            {/* Validation message area with consistent height */}
+            <div className="min-h-[3rem] flex items-center justify-center">
+              {!isFormValid() && !isSimulating && (
+                <div className="text-xs text-gray-500 text-center">
+                  <div className="text-red-500 font-medium">
+                    Missing:
+                    {getMissingFields().map((field, index) => (
+                      <p key={index} className="mt-1">{field}</p>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
 
             {/* Save Station Configuration Button */}
             <Button
