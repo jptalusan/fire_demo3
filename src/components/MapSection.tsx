@@ -854,7 +854,8 @@ export function MapSection({
       try {
         setIsLoadingIncidents(true);
         console.log('Loading incidents from model:', selectedIncidentModel, 'dataFile:', incidentModelConfig.dataFile);
-        const response = await fetch(incidentModelConfig.dataFile);
+        // Fetch CSV from the public folder (served by Vite dev server)
+        const response = await fetch(`/data${incidentModelConfig.dataFile}`);
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
