@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { Badge } from './ui/badge';
 import { AlertTriangle, CheckCircle, Clock, MapPin, TrendingUp } from 'lucide-react';
 import { processStationReport, StationReport } from '../utils/dataProcessing';
@@ -12,10 +13,11 @@ interface StatisticsTabProps {
     name?: string;
   }>;
   incidentsCount?: number;
+  stationApparatusCounts?: Map<string, Record<string, number>>;
 }
 
 // TODO: Hard coded minutes label performance here.
-export function StatisticsTab({ simulationResults, stations = [], incidentsCount = 0 }: StatisticsTabProps) {
+export function StatisticsTab({ simulationResults, stations = [], incidentsCount = 0, stationApparatusCounts }: StatisticsTabProps) {
   // Process station report data if available
   const stationReports: StationReport[] = simulationResults?.station_report 
     ? processStationReport(simulationResults.station_report)
@@ -38,6 +40,55 @@ export function StatisticsTab({ simulationResults, stations = [], incidentsCount
 
   // Baseline pre-simulation station summary
   const stationCount = stations.length;
+
+  // Apparatus keys and display names (aligns with MapSection CSV columns)
+  const apparatusColumns: { key: string; label: string }[] = [
+    { key: 'Engine_ID', label: 'Engine' },
+    { key: 'Truck', label: 'Truck' },
+    { key: 'Rescue', label: 'Rescue' },
+    { key: 'Medic', label: 'Medic' },
+    { key: 'Chief', label: 'Chief' },
+    { key: 'Hazard', label: 'Hazard' },
+    { key: 'Squad', label: 'Squad' },
+    { key: 'FAST', label: 'FAST' },
+    { key: 'Brush', label: 'Brush' },
+    { key: 'Boat', label: 'Boat' },
+    { key: 'UTV', label: 'UTV' },
+    { key: 'REACH', label: 'REACH' },
+  ];
+
+  // Compute totals and per-station rows
+  const { totalsByType, stationRows } = React.useMemo(() => {
+    const totals: Record<string, number> = {};
+    const rows: Array<{ stationId: string; stationName: string; counts: Record<string, number> }> = [];
+    if (!stationApparatusCounts) {
+      return { totalsByType: totals, stationRows: rows };
+    }
+    // Initialize totals
+    apparatusColumns.forEach(col => (totals[col.key] = 0));
+
+    // Build rows
+    stationApparatusCounts.forEach((counts, stationId) => {
+      const station = stations.find(s => s.id === stationId);
+      const stationName = station?.displayName || station?.name || stationId;
+      const rowCounts: Record<string, number> = {};
+      apparatusColumns.forEach(col => {
+        const val = Number(counts[col.key] || 0);
+        rowCounts[col.key] = val;
+        totals[col.key] += val;
+      });
+      rows.push({ stationId, stationName, counts: rowCounts });
+    });
+
+    // Sort rows by station number if present in name
+    rows.sort((a, b) => {
+      const an = parseInt(a.stationName.match(/\d+/)?.[0] || '0', 10);
+      const bn = parseInt(b.stationName.match(/\d+/)?.[0] || '0', 10);
+      return an - bn;
+    });
+
+    return { totalsByType: totals, stationRows: rows };
+  }, [stationApparatusCounts, stations]);
 
   return (
     <div className="h-full overflow-auto space-y-4 p-4">
@@ -83,6 +134,27 @@ export function StatisticsTab({ simulationResults, stations = [], incidentsCount
             <p className="text-xs text-muted-foreground">
               Within 5-minute response
             </p>
+          </CardContent>
+        </Card>
+
+        {/* Apparatus Totals (key types) */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm">Total Engines</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl">{totalsByType?.['Engine_ID'] ?? 0}</div>
+            <p className="text-xs text-muted-foreground">Aggregated across all stations</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm">Total Medics</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl">{totalsByType?.['Medic'] ?? 0}</div>
+            <p className="text-xs text-muted-foreground">Aggregated across all stations</p>
           </CardContent>
         </Card>
       </div>
@@ -175,6 +247,46 @@ export function StatisticsTab({ simulationResults, stations = [], incidentsCount
           </div>
         </div>
       )}
+
+      {/* Apparatus by Station Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Apparatus by Station</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {stationRows && stationRows.length > 0 ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Station</TableHead>
+                  {apparatusColumns.map(col => (
+                    <TableHead key={col.key}>{col.label}</TableHead>
+                  ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {stationRows.map(row => (
+                  <TableRow key={row.stationId}>
+                    <TableCell className="font-medium">{row.stationName}</TableCell>
+                    {apparatusColumns.map(col => (
+                      <TableCell key={col.key}>{row.counts[col.key] || 0}</TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+                {/* Totals row */}
+                <TableRow>
+                  <TableCell className="font-bold">Total</TableCell>
+                  {apparatusColumns.map(col => (
+                    <TableCell key={col.key} className="font-bold">{totalsByType?.[col.key] || 0}</TableCell>
+                  ))}
+                </TableRow>
+              </TableBody>
+            </Table>
+          ) : (
+            <div className="text-sm text-muted-foreground">No apparatus data available yet.</div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

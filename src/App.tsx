@@ -218,7 +218,12 @@ export default function App() {
               <div className="flex-1 overflow-hidden">
                 {/* Statistics Tab */}
                 <TabsContent value="statistics" className="h-full">
-                  <StatisticsTab simulationResults={simulationResults} stations={stations} incidentsCount={incidentsCount} />
+                  <StatisticsTab 
+                    simulationResults={simulationResults} 
+                    stations={stations} 
+                    incidentsCount={incidentsCount}
+                    stationApparatusCounts={stationApparatusCounts}
+                  />
                 </TabsContent>
 
                 {/* Simulation Results Tab */}
