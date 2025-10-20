@@ -98,9 +98,9 @@ export default function App() {
   };
 
   return (
-  <div className="h-screen flex flex-col bg-background overflow-hidden">
+  <div className="min-h-screen flex flex-col bg-background">
       {/* Header */}
-      <header className="border-b bg-card">
+      <header className="border-b bg-card flex-shrink-0">
         <div className="px-6 py-3">
           <div className="flex items-center justify-between">
             {/* Left side - Title and Icons */}
@@ -133,7 +133,7 @@ export default function App() {
       </header>
 
   {/* Main Content */}
-  <div className="flex-1 flex min-h-0">
+  <div className="flex flex-1 max-h-[calc(100vh-120px)]">
         {/* Control Panel - Collapsible */}
         <div className="flex-shrink-0">
           <ControlPanel 
@@ -167,9 +167,9 @@ export default function App() {
         </div>
 
   {/* Main Content Area - Split Layout */}
-  <div className="flex-1 flex min-h-0">
+  <div className="flex flex-1 min-h-0">
           {/* Left Side - Map (always visible) */}
-          <div className="flex-1 flex flex-col">
+          <div className="flex-1 flex flex-col min-h-0">
             <Card className="h-full border-0 rounded-none flex-1">
               <CardContent className="p-0 h-full flex-1 overflow-hidden">
                 <MapSection 
@@ -199,9 +199,9 @@ export default function App() {
           </div>
 
           {/* Right Side - Analysis Tabs */}
-          <div className="flex-1 flex flex-col min-h-0">
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col min-h-0">
-              <TabsList className="flex w-full justify-between bg-muted p-1 h-10">
+          <div className="flex-1 flex flex-col min-h-0 max-h-screen">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
+              <TabsList className="flex w-full justify-between bg-muted p-1 h-10 flex-shrink-0">
                 <TabsTrigger 
                   value="statistics" 
                   className="data-[state=active]:bg-background relative"
@@ -230,9 +230,9 @@ export default function App() {
                 </TabsTrigger>
               </TabsList>
 
-              <div className="flex-1 overflow-y-auto min-h-0">
+              <div className="flex-1 overflow-y-auto">
                 {/* Statistics Tab */}
-                <TabsContent value="statistics" className="h-full">
+                <TabsContent value="statistics" className="m-0 p-4 h-auto">
                   <StatisticsTab 
                     simulationResults={simulationResults} 
                     stations={stations} 
@@ -242,12 +242,12 @@ export default function App() {
                 </TabsContent>
 
                 {/* Simulation Results Tab */}
-                <TabsContent value="simulation" className="h-full">
+                <TabsContent value="simulation" className="m-0 p-4 h-auto">
                   <SimulationTab hasResults={hasResults} simulationResults={simulationResults} />
                 </TabsContent>
 
                 {/* Plots Tab */}
-                <TabsContent value="plots" className="h-full">
+                <TabsContent value="plots" className="m-0 p-4 h-auto">
                   <PlotsTab simulationResults={simulationResults} />
                 </TabsContent>
               </div>
@@ -257,7 +257,7 @@ export default function App() {
       </div>
 
       {/* Footer */}
-      <footer className="border-t bg-card px-6 py-3">
+      <footer className="border-t bg-card px-6 py-3 flex-shrink-0">
         <div className="flex items-center justify-between text-sm text-muted-foreground">
           <div className="flex items-center gap-4">
             <span>© 2025 Fire Department Analytics</span>

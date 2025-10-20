@@ -480,7 +480,8 @@ export function ControlPanel({
                 <select
                   value={selectedStationData || ''}
                   onChange={(e) => onStationDataChange?.(e.target.value)}
-                  className={`w-full p-2 border rounded ${!selectedStationData ? 'text-gray-400' : 'text-gray-900'}`}
+                  className="w-full p-2 border rounded text-gray-400"
+                  style={{ color: selectedStationData ? '#111827' : '#9CA3AF' }}
                 >
                   <option value="" disabled className="text-gray-400">Click to select station data</option>
                   {controlPanelConfig.stationData.options.map((option) => (
@@ -553,7 +554,8 @@ export function ControlPanel({
                 <select
                   value={selectedIncidentModel || ''}
                   onChange={(e) => onIncidentModelChange?.(e.target.value)}
-                  className={`w-full p-2 border rounded ${!selectedIncidentModel ? 'text-gray-400' : 'text-gray-900'}`}
+                  className="w-full p-2 border rounded text-gray-400"
+                  style={{ color: selectedIncidentModel ? '#111827' : '#9CA3AF' }}
                 >
                   <option value="" disabled className="text-gray-400">Click to select incident model</option>
                   {controlPanelConfig.incidentModels.options.map((model) => (
@@ -578,7 +580,8 @@ export function ControlPanel({
                 <select
                   value={selectedTravelTimeModel || ''}
                   onChange={(e) => setSelectedTravelTimeModel(e.target.value)}
-                  className={`w-full p-2 border rounded ${!selectedTravelTimeModel ? 'text-gray-400' : 'text-gray-900'}`}
+                  className="w-full p-2 border rounded text-gray-400"
+                  style={{ color: selectedTravelTimeModel ? '#111827' : '#9CA3AF' }}
                 >
                   <option value="" disabled className="text-gray-400">Click to select travel time model</option>
                   {controlPanelConfig.travelTimeModels.options.map((model) => (
@@ -603,7 +606,8 @@ export function ControlPanel({
                 <select
                   value={selectedServiceTimeModel || ''}
                   onChange={(e) => setSelectedServiceTimeModel(e.target.value)}
-                  className={`w-full p-2 border rounded ${!selectedServiceTimeModel ? 'text-gray-400' : 'text-gray-900'}`}
+                  className="w-full p-2 border rounded text-gray-400"
+                  style={{ color: selectedServiceTimeModel ? '#111827' : '#9CA3AF' }}
                 >
                   <option value="" disabled className="text-gray-400">Click to select service time model</option>
                   {controlPanelConfig.serviceTimeModels.options.map((model) => (
@@ -628,7 +632,8 @@ export function ControlPanel({
                 <select
                   value={selectedDispatchPolicy || ''}
                   onChange={(e) => onDispatchPolicyChange?.(e.target.value)}
-                  className={`w-full p-2 border rounded ${!selectedDispatchPolicy ? 'text-gray-400' : 'text-gray-900'}`}
+                  className="w-full p-2 border rounded text-gray-400"
+                  style={{ color: selectedDispatchPolicy ? '#111827' : '#9CA3AF' }}
                 >
                   <option value="" disabled className="text-gray-400">Click to select dispatch policy</option>
                   {controlPanelConfig.dispatchPolicies.options.map((policy) => (
@@ -654,7 +659,8 @@ export function ControlPanel({
                   <select
                     value={selectedServiceZoneFile || ''}
                     onChange={(e) => onServiceZoneFileChange?.(e.target.value)}
-                    className={`w-full p-2 border rounded ${!selectedServiceZoneFile ? 'text-gray-400' : 'text-gray-900'}`}
+                    className="w-full p-2 border rounded text-gray-400"
+                    style={{ color: selectedServiceZoneFile ? '#111827' : '#9CA3AF' }}
                   >
                     <option value="" disabled className="text-gray-400">Click to select service zones</option>
                     {serviceZoneFiles?.length > 0 ? (
