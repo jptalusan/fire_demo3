@@ -6,7 +6,26 @@ import { processStations, createDetailedStationPopup, createFirebeatsStationPopu
 import { createDraggableStationMarker, defaultDragHandlers, setupGlobalDeleteHandler } from '../utils/markerControl';
 import config from '../config/mapConfig.json';
 
+// Apparatus counts interface for the new design
+interface ApparatusCounts {
+  [key: string]: number;
+}
 
+// All possible apparatus types from CSV columns
+const APPARATUS_TYPES = [
+  { key: 'Engine_ID', name: 'Engine', csvColumn: 'Engine_ID' },
+  { key: 'Truck', name: 'Truck', csvColumn: 'Truck' },
+  { key: 'Rescue', name: 'Rescue', csvColumn: 'Rescue' },
+  { key: 'Hazard', name: 'Hazard', csvColumn: 'Hazard' },
+  { key: 'Squad', name: 'Squad', csvColumn: 'Squad' },
+  { key: 'FAST', name: 'FAST', csvColumn: 'FAST' },
+  { key: 'Medic', name: 'Medic', csvColumn: 'Medic' },
+  { key: 'Brush', name: 'Brush', csvColumn: 'Brush' },
+  { key: 'Boat', name: 'Boat', csvColumn: 'Boat' },
+  { key: 'UTV', name: 'UTV', csvColumn: 'UTV' },
+  { key: 'REACH', name: 'REACH', csvColumn: 'REACH' },
+  { key: 'Chief', name: 'Chief', csvColumn: 'Chief' }
+];
 
 // Extend the Window interface to include our custom global functions
 declare global {
@@ -65,6 +84,7 @@ export function MapSection({
   const [apparatusManagerOpen, setApparatusManagerOpen] = useState(false);
   const [selectedStationForApparatus, setSelectedStationForApparatus] = useState<ProcessedStation | null>(null);
   const [stationApparatus, setStationApparatus] = useState<Map<string, Apparatus[]>>(new Map());
+  const [stationApparatusCounts, setStationApparatusCounts] = useState<Map<string, ApparatusCounts>>(new Map());
   const [editingApparatus, setEditingApparatus] = useState<string | null>(null);
   
   // Layer toggle states
@@ -132,13 +152,22 @@ export function MapSection({
             type: apparatusType,
             name: apparatusName,
             status: 'Available',
-            crew: apparatusType === 'Ambulance' ? 2 : 4
+            crew: 1 // Each apparatus represents a count of 1
           });
         }
       }
     });
     
     return apparatus;
+  }, []);
+
+  // Extract apparatus counts from CSV row
+  const extractApparatusCountsFromCSV = useCallback((stationRow: any): ApparatusCounts => {
+    const counts: ApparatusCounts = {};
+    APPARATUS_TYPES.forEach(apparatusType => {
+      counts[apparatusType.key] = parseInt(stationRow[apparatusType.csvColumn]) || 0;
+    });
+    return counts;
   }, []);
 
   // Parse CSV data
@@ -286,6 +315,10 @@ export function MapSection({
           const apparatus = createApparatusFromCSV(row, station.id, stationNumber);
           setStationApparatus(prev => new Map(prev).set(station.id, apparatus));
           
+          // Extract apparatus counts for the new UI
+          const apparatusCounts = extractApparatusCountsFromCSV(row);
+          setStationApparatusCounts(prev => new Map(prev).set(station.id, apparatusCounts));
+          
           return station;
         }).filter(station => !isNaN(station.lat) && !isNaN(station.lon));
         
@@ -298,7 +331,7 @@ export function MapSection({
     }
 
     setCurrentStationData(stationDataId);
-  }, [mapInstance, gridsLayer, zonesLayer, showGrids, showZones, parseCSV, createApparatusFromCSV, setStationApparatus, onStationsChange]);
+  }, [mapInstance, gridsLayer, zonesLayer, showGrids, showZones, parseCSV, createApparatusFromCSV, extractApparatusCountsFromCSV, setStationApparatus, onStationsChange]);
 
   // Toggle grids layer
   const toggleGridsLayer = useCallback(() => {
@@ -394,6 +427,22 @@ export function MapSection({
       onApparatusChange(stationId, updatedApparatusList);
     }
   }, [onApparatusChange]);
+
+  // Handle apparatus count update
+  const handleApparatusCountUpdate = useCallback((stationId: string, apparatusKey: string, count: number) => {
+    setStationApparatusCounts(prev => {
+      const newMap = new Map(prev);
+      const currentCounts = newMap.get(stationId) || {};
+      const updatedCounts = { ...currentCounts, [apparatusKey]: Math.max(0, count) };
+      newMap.set(stationId, updatedCounts);
+      return newMap;
+    });
+  }, []);
+
+  // Get current apparatus counts for a station
+  const getApparatusCounts = useCallback((stationId: string): ApparatusCounts => {
+    return stationApparatusCounts.get(stationId) || {};
+  }, [stationApparatusCounts]);
 
   // Initialize default apparatus for new stations
   useEffect(() => {
@@ -605,6 +654,10 @@ export function MapSection({
           if (selectedStationFile === 'stations.csv') {
             const apparatus = createApparatusFromCSV(row, station.id, stationNumber);
             setStationApparatus(prev => new Map(prev).set(station.id, apparatus));
+            
+            // Extract apparatus counts for the new UI
+            const apparatusCounts = extractApparatusCountsFromCSV(row);
+            setStationApparatusCounts(prev => new Map(prev).set(station.id, apparatusCounts));
           }
           
           return station;
@@ -617,7 +670,7 @@ export function MapSection({
     };
 
     loadStations();
-  }, [selectedStationFile, createApparatusFromCSV, setStationApparatus, onStationsChange]);
+  }, [selectedStationFile, createApparatusFromCSV, extractApparatusCountsFromCSV, setStationApparatus, onStationsChange]);
 
   useEffect(() => {
     console.log('Initializing map');
@@ -843,119 +896,63 @@ export function MapSection({
               </div>
               
               <div>
-                <h4 className="font-medium text-gray-900 mb-3">Equipment & Apparatus</h4>
-                <div className="space-y-2">
-                  {(stationApparatus.get(selectedStationForApparatus.id) || []).map(apparatus => (
-                    <div key={apparatus.id} className="border rounded-lg p-3 bg-gray-50">
-                      {editingApparatus === apparatus.id ? (
-                        // Edit mode
-                        <div className="space-y-3">
-                          <div>
-                            <label className="block text-xs font-medium text-gray-700 mb-1">Name</label>
-                            <input
-                              type="text"
-                              defaultValue={apparatus.name}
-                              className="w-full px-2 py-1 text-sm border border-gray-300 rounded"
-                              id={`name-${apparatus.id}`}
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-medium text-gray-700 mb-1">Type</label>
-                            <select
-                              defaultValue={apparatus.type}
-                              className="w-full px-2 py-1 text-sm border border-gray-300 rounded"
-                              id={`type-${apparatus.id}`}
-                            >
-                              <option value="Engine">Engine</option>
-                              <option value="Ladder">Ladder</option>
-                              <option value="Rescue">Rescue</option>
-                              <option value="Ambulance">Ambulance</option>
-                              <option value="Chief">Chief</option>
-                            </select>
-                          </div>
-                          <div>
-                            <label className="block text-xs font-medium text-gray-700 mb-1">Status</label>
-                            <select
-                              defaultValue={apparatus.status}
-                              className="w-full px-2 py-1 text-sm border border-gray-300 rounded"
-                              id={`status-${apparatus.id}`}
-                            >
-                              <option value="Available">Available</option>
-                              <option value="In Use">In Use</option>
-                              <option value="Out of Service">Out of Service</option>
-                            </select>
-                          </div>
-                          <div>
-                            <label className="block text-xs font-medium text-gray-700 mb-1">Crew Size</label>
-                            <input
-                              type="number"
-                              min="1"
-                              max="10"
-                              defaultValue={apparatus.crew}
-                              className="w-full px-2 py-1 text-sm border border-gray-300 rounded"
-                              id={`crew-${apparatus.id}`}
-                            />
-                          </div>
-                          <div className="flex gap-2 pt-2">
-                            <button
-                              onClick={() => {
-                                const name = (document.getElementById(`name-${apparatus.id}`) as HTMLInputElement).value;
-                                const type = (document.getElementById(`type-${apparatus.id}`) as HTMLSelectElement).value as Apparatus['type'];
-                                const status = (document.getElementById(`status-${apparatus.id}`) as HTMLSelectElement).value as Apparatus['status'];
-                                const crew = parseInt((document.getElementById(`crew-${apparatus.id}`) as HTMLInputElement).value);
-                                handleApparatusUpdate(selectedStationForApparatus.id, apparatus.id, { name, type, status, crew });
-                              }}
-                              className="text-xs px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700"
-                            >
-                              Save
-                            </button>
-                            <button
-                              onClick={() => setEditingApparatus(null)}
-                              className="text-xs px-3 py-1 bg-gray-500 text-white rounded hover:bg-gray-600"
-                            >
-                              Cancel
-                            </button>
-                          </div>
+                <h4 className="font-medium text-gray-900 mb-3">Apparatus Configuration</h4>
+                <div className="space-y-3">
+                  {APPARATUS_TYPES.map(apparatusType => {
+                    const currentCounts = getApparatusCounts(selectedStationForApparatus.id);
+                    const count = currentCounts[apparatusType.key] || 0;
+                    const isActive = count > 0;
+                    
+                    return (
+                      <div 
+                        key={apparatusType.key} 
+                        className={`flex items-center justify-between p-3 border rounded-lg transition-all ${
+                          isActive 
+                            ? 'bg-blue-50 border-blue-200 shadow-sm' 
+                            : 'bg-gray-50 border-gray-200'
+                        }`}
+                      >
+                        <div className="flex items-center space-x-3">
+                          <div 
+                            className={`w-3 h-3 rounded-full ${
+                              isActive ? 'bg-blue-500' : 'bg-gray-300'
+                            }`}
+                          />
+                          <span className={`font-medium ${
+                            isActive ? 'text-blue-900' : 'text-gray-700'
+                          }`}>
+                            {apparatusType.name}
+                          </span>
                         </div>
-                      ) : (
-                        // View mode
-                        <>
-                          <div className="flex justify-between items-start mb-2">
-                            <div>
-                              <h5 className="font-medium text-gray-900">{apparatus.name}</h5>
-                              <p className="text-sm text-gray-600">{apparatus.type}</p>
-                            </div>
-                            <span className={`px-2 py-1 text-xs rounded-full ${
-                              apparatus.status === 'Available' ? 'bg-green-100 text-green-800' :
-                              apparatus.status === 'In Use' ? 'bg-yellow-100 text-yellow-800' :
-                              'bg-red-100 text-red-800'
-                            }`}>
-                              {apparatus.status}
-                            </span>
-                          </div>
-                          <div className="text-sm text-gray-600">
-                            <p>Crew Size: {apparatus.crew}</p>
-                          </div>
-                          <div className="mt-2 flex gap-2">
-                            <button
-                              onClick={() => setEditingApparatus(apparatus.id)}
-                              className="text-xs px-2 py-1 bg-blue-100 text-blue-800 rounded hover:bg-blue-200"
-                            >
-                              Edit
-                            </button>
-                            <button className="text-xs px-2 py-1 bg-gray-100 text-gray-800 rounded hover:bg-gray-200">
-                              Service Log
-                            </button>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  ))}
+                        <div className="flex items-center space-x-2">
+                          <button
+                            onClick={() => handleApparatusCountUpdate(selectedStationForApparatus.id, apparatusType.key, count - 1)}
+                            disabled={count <= 0}
+                            className="w-8 h-8 rounded-full bg-gray-200 text-gray-600 hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center text-sm font-bold"
+                          >
+                            -
+                          </button>
+                          <span className="w-8 text-center font-semibold text-gray-900">
+                            {count}
+                          </span>
+                          <button
+                            onClick={() => handleApparatusCountUpdate(selectedStationForApparatus.id, apparatusType.key, count + 1)}
+                            className="w-8 h-8 rounded-full bg-blue-500 text-white hover:bg-blue-600 flex items-center justify-center text-sm font-bold"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
                 
-                <button className="mt-4 w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                  Add Equipment
-                </button>
+                <div className="mt-6 p-3 bg-gray-100 rounded-lg">
+                  <h5 className="font-medium text-gray-900 mb-2">Total Apparatus</h5>
+                  <p className="text-sm text-gray-600">
+                    {Object.values(getApparatusCounts(selectedStationForApparatus.id)).reduce((sum, count) => sum + count, 0)} units configured
+                  </p>
+                </div>
               </div>
             </div>
           </div>
