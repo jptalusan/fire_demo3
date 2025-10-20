@@ -166,12 +166,17 @@ export function StatisticsTab({ simulationResults, stations = [], incidentsCount
             {/* Historical Incident Statistics */}
             {historicalIncidentStats && !historicalIncidentError && (
               <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Avg Time Between Incidents</span>
-                  <Badge variant="outline">
-                    {historicalIncidentStats.average_time_between_incidents_minutes.toFixed(2)} min
-                  </Badge>
-                </div>
+                {/* Average time between incidents - with safe access */}
+                {historicalIncidentStats.average_time_between_incidents_minutes !== undefined && 
+                 historicalIncidentStats.average_time_between_incidents_minutes !== null && 
+                 typeof historicalIncidentStats.average_time_between_incidents_minutes === 'number' && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">Avg Time Between Incidents</span>
+                    <Badge variant="outline">
+                      {historicalIncidentStats.average_time_between_incidents_minutes.toFixed(2)} min
+                    </Badge>
+                  </div>
+                )}
                 
                 {/* Incident Type Breakdown */}
                 {historicalIncidentStats.incident_counts && (

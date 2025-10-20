@@ -42,14 +42,6 @@
         "endpoint": "/generate-incidents",
         "description": "AI-generated incident scenarios",
         "dataFile": null
-      },
-      {
-        "id": "peak_demand",
-        "name": "Peak Demand Simulation",
-        "source": "generated",
-        "endpoint": "/generate-peak-incidents",
-        "description": "High-stress scenario simulation",
-        "dataFile": null
       }
     ]
   },

@@ -843,12 +843,23 @@ export function MapSection({
         model => model.id === selectedIncidentModel
       );
 
-      // Only load incidents if the model has a dataFile
+      // For models without dataFile (like synthetic incidents), check if incidents are provided via props
       if (!incidentModelConfig || !incidentModelConfig.dataFile) {
-        setIncidents([]);
-        if (onIncidentsChange) onIncidentsChange([]);
-        setIsLoadingIncidents(false);
-        return;
+        // If we have incidents from props (e.g., synthetic incidents), use those
+        if (incidents && incidents.length > 0) {
+          console.log('Using incidents from props:', incidents.length);
+          setIncidents(incidents);
+          if (onIncidentsCountChange) onIncidentsCountChange(incidents.length);
+          setIsLoadingIncidents(false);
+          return;
+        } else {
+          // No dataFile and no prop incidents - clear everything
+          setIncidents([]);
+          if (onIncidentsChange) onIncidentsChange([]);
+          if (onIncidentsCountChange) onIncidentsCountChange(0);
+          setIsLoadingIncidents(false);
+          return;
+        }
       }
 
       try {
@@ -890,7 +901,7 @@ export function MapSection({
     };
 
     loadIncidents();
-  }, [selectedIncidentModel]); // Temporarily removed: startDate, endDate, filterIncidentsByDateRange
+  }, [selectedIncidentModel, incidents]); // Added incidents to dependencies
 
   useEffect(() => {
     const loadStations = async () => {

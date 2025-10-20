@@ -42,6 +42,7 @@ interface ControlPanelProps {
   onToggleCollapse?: () => void;
   onHistoricalIncidentStatsChange?: (stats: any) => void;
   onHistoricalIncidentErrorChange?: (error: string | null) => void;
+  onIncidentsChange?: (incidents: any[]) => void;
 }
 
 export function ControlPanel({
@@ -73,6 +74,7 @@ export function ControlPanel({
   onToggleCollapse,
   onHistoricalIncidentStatsChange,
   onHistoricalIncidentErrorChange,
+  onIncidentsChange,
 }: ControlPanelProps) {
   const [fireStationsFile, setFireStationsFile] = useState<File | null>(null);
   const [incidentsFile, setIncidentsFile] = useState<File | null>(null);
@@ -294,6 +296,146 @@ export function ControlPanel({
 
     processHistoricalIncidents();
   }, [selectedIncidentModel, onHistoricalIncidentStatsChange, onHistoricalIncidentErrorChange]);
+
+  // Process synthetic incidents when model changes to synthetic_incidents
+  useEffect(() => {
+    const processSyntheticIncidents = async () => {
+      if (selectedIncidentModel === 'synthetic_incidents') {
+        try {
+          // Validate date range
+          if (!startDate || !endDate) {
+            if (onHistoricalIncidentErrorChange) {
+              onHistoricalIncidentErrorChange('Please select both start and end dates for synthetic incident generation.');
+            }
+            return;
+          }
+
+          console.log('Generating synthetic incidents for date range:', startDate, 'to', endDate);
+
+          // Step 1: Generate incidents from backend
+          const generateResponse = await fetch('http://localhost:8000/generate-incidents', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              start_date: startDate.toISOString().split('T')[0], // YYYY-MM-DD format
+              end_date: endDate.toISOString().split('T')[0]
+            }),
+          });
+
+          if (!generateResponse.ok) {
+            throw new Error(`Backend failed to generate incidents: ${generateResponse.statusText}`);
+          }
+
+          const csvData = await generateResponse.text();
+          console.log('Generated synthetic incidents CSV length:', csvData.length);
+
+          // Step 2: Process CSV for statistics
+          const statsResponse = await fetch('http://localhost:8000/process-incidents', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'text/csv',
+            },
+            body: csvData,
+          });
+
+          if (!statsResponse.ok) {
+            throw new Error(`Backend failed to process incidents: ${statsResponse.statusText}`);
+          }
+
+          const stats = await statsResponse.json();
+          console.log('Synthetic incident processing result:', stats);
+          
+          // Update statistics
+          if (onHistoricalIncidentStatsChange) {
+            onHistoricalIncidentStatsChange(stats);
+          }
+
+          // Step 3: Parse CSV for map display
+          const incidents = parseCSVToIncidents(csvData);
+          console.log('Parsed incidents for map:', incidents.length);
+          
+          // Pass incidents to map via callback
+          if (onIncidentsChange) {
+            onIncidentsChange(incidents);
+          }
+
+          // Clear any previous errors
+          if (onHistoricalIncidentErrorChange) {
+            onHistoricalIncidentErrorChange(null);
+          }
+
+        } catch (error) {
+          console.error('Error processing synthetic incidents:', error);
+          let errorMessage = 'An error occurred while processing synthetic incidents.';
+          
+          if (error instanceof Error) {
+            if (error.message.includes('select both start and end dates')) {
+              errorMessage = 'Please select both start and end dates for synthetic incident generation.';
+            } else if (error.message.includes('Backend failed to generate')) {
+              errorMessage = 'Backend server failed to generate synthetic incidents.';
+            } else if (error.message.includes('Backend failed to process')) {
+              errorMessage = 'Backend server failed to process the incidents data.';
+            } else if (error.message.includes('NetworkError') || error.message.includes('Failed to fetch')) {
+              errorMessage = 'Backend server is not reachable.';
+            }
+          }
+          
+          // Clear stats and incidents on error
+          if (onHistoricalIncidentStatsChange) {
+            onHistoricalIncidentStatsChange(null);
+          }
+          if (onIncidentsChange) {
+            onIncidentsChange([]);
+          }
+          if (onHistoricalIncidentErrorChange) {
+            onHistoricalIncidentErrorChange(errorMessage);
+          }
+        }
+      } else if (selectedIncidentModel !== 'historical_incidents') {
+        // Clear synthetic incidents when switching to other models (but not historical)
+        if (onIncidentsChange) {
+          onIncidentsChange([]);
+        }
+      }
+    };
+
+    processSyntheticIncidents();
+  }, [selectedIncidentModel, startDate, endDate, onHistoricalIncidentStatsChange, onHistoricalIncidentErrorChange, onIncidentsChange]);
+
+  // Helper function to parse CSV into incident objects for the map
+  const parseCSVToIncidents = (csvData: string) => {
+    const lines = csvData.trim().split('\n');
+    if (lines.length < 2) return []; // No data rows
+    
+    const headers = lines[0].split(',').map(h => h.trim());
+    const incidents = [];
+
+    for (let i = 1; i < lines.length; i++) {
+      const values = lines[i].split(',');
+      const incident: any = {};
+      
+      headers.forEach((header, index) => {
+        incident[header] = values[index]?.trim();
+      });
+
+      // Convert to the format expected by the map
+      if (incident.lat && incident.lon) {
+        incidents.push({
+          id: incident.incident_id || `synthetic_${i}`,
+          lat: parseFloat(incident.lat),
+          lon: parseFloat(incident.lon),
+          incident_type: incident.incident_type || 'Unknown',
+          incident_level: incident.incident_level || 'Unknown',
+          datetime: incident.datetime || new Date().toISOString(),
+          category: incident.category || 'Unknown'
+        });
+      }
+    }
+
+    return incidents;
+  };
 
   const handleFileUpload = (
     file: File | null,
