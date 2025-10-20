@@ -1014,7 +1014,6 @@ export function MapSection({
                             isActive ? 'text-blue-900' : 'text-gray-700'
                           }`}>
                             {apparatusType.name}
-                            {isModified && <span className="text-xs text-red-600 ml-2 font-normal">(modified)</span>}
                           </span>
                         </div>
                         <div className="flex items-center space-x-2">

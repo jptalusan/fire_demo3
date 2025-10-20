@@ -4,7 +4,7 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Separator } from './ui/separator';
-import { Play, Settings, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Play, Settings, ChevronLeft, ChevronRight, Download } from 'lucide-react';
 import { ProcessedStation, Apparatus } from '../utils/dataProcessing';
 import controlPanelConfig from '../config/controlPanelConfig.json';
 
@@ -197,6 +197,138 @@ export function ControlPanel({
     });
     
     return apparatusArray;
+  };
+
+  const handleSaveStationConfiguration = async () => {
+    try {
+      // Prepare CSV headers
+      const headers = [
+        'StationID',
+        'Stations',
+        'Address', 
+        'lat',
+        'lon',
+        'Service Zone',
+        'Engine_ID',
+        'Truck',
+        'Rescue',
+        'Hazard',
+        'Squad',
+        'FAST',
+        'Medic',
+        'Brush',
+        'Boat',
+        'UTV',
+        'REACH',
+        'Chief'
+      ];
+
+      // Prepare CSV rows
+      const rows = stations.map(station => {
+        const apparatusCounts = stationApparatusCounts.get(station.id) || {};
+        
+        return [
+          station.id,
+          station.name || station.displayName || '',
+          station.address || '',
+          station.lat.toString(),
+          station.lon.toString(),
+          station.serviceZone || '',
+          (apparatusCounts['Engine_ID'] || 0).toString(),
+          (apparatusCounts['Truck'] || 0).toString(),
+          (apparatusCounts['Rescue'] || 0).toString(),
+          (apparatusCounts['Hazard'] || 0).toString(),
+          (apparatusCounts['Squad'] || 0).toString(),
+          (apparatusCounts['FAST'] || 0).toString(),
+          (apparatusCounts['Medic'] || 0).toString(),
+          (apparatusCounts['Brush'] || 0).toString(),
+          (apparatusCounts['Boat'] || 0).toString(),
+          (apparatusCounts['UTV'] || 0).toString(),
+          (apparatusCounts['REACH'] || 0).toString(),
+          (apparatusCounts['Chief'] || 0).toString()
+        ];
+      });
+
+      // Create CSV content
+      const csvContent = [headers, ...rows]
+        .map(row => row.map(cell => `"${cell}"`).join(','))
+        .join('\n');
+
+      // Generate default filename with timestamp
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      const defaultFilename = `station_configuration_${timestamp}.csv`;
+
+      // Check if File System Access API is supported and we're in a secure context
+      const hasFileSystemAccess = 'showSaveFilePicker' in window && window.isSecureContext;
+      console.log('File System Access API available:', hasFileSystemAccess);
+      
+      if (hasFileSystemAccess) {
+        try {
+          console.log('Attempting to show native save dialog...');
+          const fileHandle = await (window as any).showSaveFilePicker({
+            suggestedName: defaultFilename,
+            types: [{
+              description: 'CSV files',
+              accept: { 'text/csv': ['.csv'] }
+            }],
+            excludeAcceptAllOption: true
+          });
+          
+          console.log('User selected file, writing content...');
+          const writable = await fileHandle.createWritable();
+          await writable.write(csvContent);
+          await writable.close();
+          
+          console.log('Station configuration saved successfully via native dialog');
+          return;
+        } catch (error) {
+          // User cancelled or error occurred, fall back to download method
+          if (error instanceof Error && error.name === 'AbortError') {
+            console.log('User cancelled save dialog');
+            return; // Don't fall back if user explicitly cancelled
+          } else {
+            console.warn('File System Access API failed, falling back to download:', error);
+          }
+        }
+      } else {
+        console.log('File System Access API not available, using download method');
+      }
+
+      // Fallback: Ask user for filename using browser prompt, then download
+      let finalFilename = defaultFilename;
+      const userFilename = prompt('Save as filename:', defaultFilename);
+      if (userFilename === null) {
+        console.log('User cancelled save');
+        return; // User cancelled
+      }
+      if (userFilename.trim()) {
+        finalFilename = userFilename.trim();
+        if (!finalFilename.endsWith('.csv')) {
+          finalFilename += '.csv';
+        }
+      }
+
+      // Use traditional download method with user-specified filename
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', finalFilename);
+      
+      // Trigger download
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Clean up
+      URL.revokeObjectURL(url);
+      
+      console.log('Station configuration saved successfully as:', finalFilename);
+    } catch (error) {
+      console.error('Error saving station configuration:', error);
+      alert('Error saving station configuration. Please try again.');
+    }
   };
 
   const handleRunSimulation = async () => {
@@ -561,7 +693,7 @@ export function ControlPanel({
           <Separator /> */}
 
           {/* Run Simulation Button */}
-          <div className="pt-4">
+          <div className="pt-4 space-y-3">
             <Button
               onClick={handleRunSimulation}
               disabled={isSimulating}
@@ -579,6 +711,17 @@ export function ControlPanel({
                   RUN SIMULATION
                 </>
               )}
+            </Button>
+
+            {/* Save Station Configuration Button */}
+            <Button
+              onClick={handleSaveStationConfiguration}
+              variant="outline"
+              className="w-full h-10"
+              size="lg"
+            >
+              <Download className="w-4 h-4 mr-2" />
+              SAVE STATION CONFIG
             </Button>
           </div>
           </CardContent>

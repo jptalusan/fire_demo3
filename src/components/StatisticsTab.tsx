@@ -41,6 +41,19 @@ export function StatisticsTab({ simulationResults, stations = [], incidentsCount
   // Baseline pre-simulation station summary
   const stationCount = stations.length;
 
+  // Calculate average apparatus per station
+  const averageApparatusPerStation = useMemo(() => {
+    if (!stationApparatusCounts || stationApparatusCounts.size === 0) return 0;
+    
+    let totalApparatus = 0;
+    stationApparatusCounts.forEach(counts => {
+      const stationTotal = Object.values(counts).reduce((sum, count) => sum + (count || 0), 0);
+      totalApparatus += stationTotal;
+    });
+    
+    return stationApparatusCounts.size > 0 ? (totalApparatus / stationApparatusCounts.size).toFixed(1) : '0';
+  }, [stationApparatusCounts]);
+
   // Apparatus keys and display names (aligns with MapSection CSV columns)
   const apparatusColumns: { key: string; label: string }[] = [
     { key: 'Engine_ID', label: 'Engine' },
@@ -111,7 +124,7 @@ export function StatisticsTab({ simulationResults, stations = [], incidentsCount
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card>
           <CardHeader>
-            <CardTitle>Station Overview</CardTitle>
+            <CardTitle>Stations Overview</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex items-center justify-between">
@@ -119,17 +132,21 @@ export function StatisticsTab({ simulationResults, stations = [], incidentsCount
               <Badge variant="secondary">{stationCount}</Badge>
             </div>
             <div className="flex items-center justify-between">
-              <span>Incidents (selected model)</span>
-              <Badge variant="outline">{incidentsCount}</Badge>
+              <span>Average Apparatus per Station</span>
+              <Badge variant="outline">{averageApparatusPerStation}</Badge>
             </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Incident Types</CardTitle>
+            <CardTitle>Incidents Overview</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
+            <div className="flex items-center justify-between mb-3">
+              <span className="font-medium">Total Incidents</span>
+              <Badge variant="secondary">{incidentsCount}</Badge>
+            </div>
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
                 <span>Structure Fires</span>

@@ -185,8 +185,7 @@ export default function App() {
               <TabsList className="flex w-full justify-between bg-muted p-1 h-10">
                 <TabsTrigger 
                   value="statistics" 
-                  disabled={!hasResults} 
-                  className={`data-[state=active]:bg-background relative ${!hasResults ? "opacity-50 cursor-not-allowed" : ""}`}
+                  className="data-[state=active]:bg-background relative"
                 >
                   <span className={activeTab === 'statistics' ? 'bg-white text-gray-800 px-4 py-1 rounded-full' : ''}>
                     Statistics
