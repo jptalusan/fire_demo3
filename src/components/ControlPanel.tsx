@@ -97,6 +97,41 @@ export function ControlPanel({
     }
   }, [selectedDispatchPolicy]);
 
+  // Validation function to check if all required fields are selected
+  const isFormValid = () => {
+    const requiredFields = [
+      selectedStationData,
+      selectedIncidentModel,
+      selectedTravelTimeModel,
+      selectedServiceTimeModel,
+      selectedDispatchPolicy
+    ];
+    
+    // Check if all required fields have values
+    const allFieldsSelected = requiredFields.every(field => field && field.trim() !== '');
+    
+    // If firebeats policy is selected, also check service zone file
+    if (selectedDispatchPolicy === 'firebeats') {
+      return allFieldsSelected && selectedServiceZoneFile && selectedServiceZoneFile.trim() !== '';
+    }
+    
+    return allFieldsSelected;
+  };
+
+  // Get list of missing required fields for better user feedback
+  const getMissingFields = () => {
+    const missing = [];
+    if (!selectedStationData) missing.push('Station Data');
+    if (!selectedIncidentModel) missing.push('Incident Model');
+    if (!selectedTravelTimeModel) missing.push('Travel Time Model');
+    if (!selectedServiceTimeModel) missing.push('Service Time Model');
+    if (!selectedDispatchPolicy) missing.push('Dispatch Policy');
+    if (selectedDispatchPolicy === 'firebeats' && !selectedServiceZoneFile) {
+      missing.push('Service Zones');
+    }
+    return missing;
+  };
+
   // Utility function to handle API responses consistently
   const handleApiResponse = (data: any, key: string) => {
     console.log('Raw response data:', data); // Log the entire response object
@@ -736,8 +771,8 @@ export function ControlPanel({
           <div className="pt-4 space-y-3">
             <Button
               onClick={handleRunSimulation}
-              disabled={isSimulating}
-              className="w-full h-12"
+              disabled={isSimulating || !isFormValid()}
+              className={`w-full h-12 ${!isFormValid() && !isSimulating ? 'opacity-50 cursor-not-allowed' : ''}`}
               size="lg"
             >
               {isSimulating ? (
@@ -752,6 +787,14 @@ export function ControlPanel({
                 </>
               )}
             </Button>
+            {!isFormValid() && !isSimulating && (
+              <div className="text-xs text-gray-500 text-center">
+                <p className="mb-1">Please select all required options:</p>
+                <p className="text-red-500 font-medium">
+                  Missing: {getMissingFields().join(', ')}
+                </p>
+              </div>
+            )}
 
             {/* Save Station Configuration Button */}
             <Button
