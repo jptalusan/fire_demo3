@@ -9,3 +9,17 @@
 
   Run `npm run dev` to start the development server.
   npm install leaflet
+
+  ## RHEL8
+  
+  sudo dnf module enable nodejs:16
+sudo dnf install nodejs
+cd /path/to/fire_demo3
+npm install
+npm install leaflet
+npm run dev
+
+If you encounter permission issues, use sudo for npm commands or configure npm to avoid global permissions issues:
+
+npm config set prefix ~/.npm
+export PATH=$PATH:~/.npm/bin
