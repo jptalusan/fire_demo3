@@ -1,6 +1,6 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
-import { AlertTriangle, CheckCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Clock, MapPin, AlertTriangle as Triangle } from 'lucide-react';
 
 interface SimulationTabProps {
   hasResults: boolean;
@@ -12,6 +12,40 @@ export function SimulationTab({ hasResults, simulationResults }: SimulationTabPr
     <div className="h-full overflow-auto space-y-4 p-4">
       {hasResults ? (
         <div className="space-y-4">
+          {/* KPI Cards moved from Statistics */}
+          <div className="grid grid-cols-3 gap-3">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5">
+                <CardTitle className="text-sm">Total Incidents</CardTitle>
+                <Triangle className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-xl">{simulationResults?.total_incidents ?? '-'}</div>
+                <p className="text-[11px] text-muted-foreground">From simulation</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5">
+                <CardTitle className="text-sm">Avg Response Time</CardTitle>
+                <Clock className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-xl">{simulationResults?.average_response_time ?? '-'} min</div>
+                <p className="text-[11px] text-green-600">Within target range</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5">
+                <CardTitle className="text-sm">Area Coverage</CardTitle>
+                <MapPin className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-xl">{simulationResults?.coverage_percent ?? '87%'}
+                </div>
+                <p className="text-[11px] text-muted-foreground">Within 5-minute response</p>
+              </CardContent>
+            </Card>
+          </div>
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">

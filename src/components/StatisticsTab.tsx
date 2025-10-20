@@ -92,63 +92,17 @@ export function StatisticsTab({ simulationResults, stations = [], incidentsCount
 
   return (
     <div className="h-full overflow-auto space-y-4 p-4">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm">Total Incidents</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl">
-              {simulationResults?.total_incidents ?? incidentsCount}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {simulationResults?.total_incidents ? 'From simulation' : 'From current selection'}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm">Avg Response Time</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl">
-              {simulationResults?.average_response_time || '4.5'} min
-              </div>
-            <p className="text-xs text-green-600">
-              {/* TODO: Have this be configurable what is acceptable or not, see individual stations */}
-              Within target range
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm">Area Coverage</CardTitle>
-            <MapPin className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl">87%</div>
-            <p className="text-xs text-muted-foreground">
-              Within 5-minute response
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* Compact apparatus totals grid */}
-      </div>
-
+      {/* Top-level simulation KPIs moved to Simulation Results tab */}
+      {/* Compact apparatus totals grid (aim ~6+ per row) */}
       <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-2">
         {apparatusColumns.map(col => (
-          <Card key={col.key}>
-            <CardHeader className="py-2 px-3">
-              <CardTitle className="text-[11px] font-medium">{col.label}</CardTitle>
+          <Card key={col.key} className="min-w-0">
+            <CardHeader className="py-1 px-2">
+              <CardTitle className="text-[10px] font-medium">{col.label}</CardTitle>
             </CardHeader>
-            <CardContent className="py-2 px-3">
-              <div className="text-base font-bold">{totalsByType?.[col.key] ?? 0}</div>
-              <p className="text-[10px] text-muted-foreground">Across all</p>
+            <CardContent className="py-1 px-2">
+              <div className="text-[13px] leading-none font-semibold">{totalsByType?.[col.key] ?? 0}</div>
+              <p className="text-[9px] leading-none mt-1 text-muted-foreground">Across all</p>
             </CardContent>
           </Card>
         ))}
@@ -264,7 +218,7 @@ export function StatisticsTab({ simulationResults, stations = [], incidentsCount
                   <TableRow key={row.stationId}>
                     <TableCell className="font-medium">{row.stationName}</TableCell>
                     {apparatusColumns.map(col => (
-                      <TableCell key={col.key}>{row.counts[col.key] || 0}</TableCell>
+                      <TableCell key={col.key} className="text-center">{row.counts[col.key] || 0}</TableCell>
                     ))}
                   </TableRow>
                 ))}
@@ -272,7 +226,7 @@ export function StatisticsTab({ simulationResults, stations = [], incidentsCount
                 <TableRow>
                   <TableCell className="font-bold">Total</TableCell>
                   {apparatusColumns.map(col => (
-                    <TableCell key={col.key} className="font-bold">{totalsByType?.[col.key] || 0}</TableCell>
+                    <TableCell key={col.key} className="font-bold text-center">{totalsByType?.[col.key] || 0}</TableCell>
                   ))}
                 </TableRow>
               </TableBody>
