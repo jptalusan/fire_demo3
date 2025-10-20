@@ -147,7 +147,7 @@ export function StatisticsTab({ simulationResults, stations = [], incidentsCount
               <span className="font-medium">Total Incidents</span>
               <Badge variant="secondary">{incidentsCount}</Badge>
             </div>
-            <div className="space-y-2">
+            {/* <div className="space-y-2">
               <div className="flex justify-between text-sm">
                 <span>Structure Fires</span>
                 <span>16.4%</span>
@@ -164,7 +164,7 @@ export function StatisticsTab({ simulationResults, stations = [], incidentsCount
                 <span>Other Incidents</span>
                 <span>12.7%</span>
               </div>
-            </div>
+            </div> */}
           </CardContent>
         </Card>
       </div>

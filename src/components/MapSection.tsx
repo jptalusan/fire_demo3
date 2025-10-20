@@ -55,6 +55,9 @@ interface MapSectionProps {
   startDate?: Date;
   endDate?: Date;
   onIncidentsCountChange?: (count: number) => void;
+  incidents?: ProcessedIncident[];
+  onIncidentsChange?: (incidents: ProcessedIncident[]) => void;
+  onClearLayers?: () => void;
 }
 
 interface FireStation {
@@ -91,10 +94,22 @@ export function MapSection({
   selectedIncidentModel,
   startDate,
   endDate,
-  onIncidentsCountChange
+  onIncidentsCountChange,
+  incidents: externalIncidents,
+  onIncidentsChange,
+  onClearLayers
 }: MapSectionProps) {
-  const [incidents, setIncidents] = useState<ProcessedIncident[]>([]);
+  const [incidents, setIncidents] = useState<ProcessedIncident[]>(externalIncidents || []);
   const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
+  const [isLoadingIncidents, setIsLoadingIncidents] = useState(false);
+  const [isLoadingStations, setIsLoadingStations] = useState(false);
+
+  // Sync with external incidents state
+  useEffect(() => {
+    if (externalIncidents !== undefined) {
+      setIncidents(externalIncidents);
+    }
+  }, [externalIncidents]);
   const [markerLayer, setMarkerLayer] = useState<L.LayerGroup | null>(null);
   const [serviceZoneLayer, setServiceZoneLayer] = useState<L.LayerGroup | null>(null);
   const [stationMarkers, setStationMarkers] = useState<Map<string, L.Marker>>(new Map()); // Track station markers
@@ -238,6 +253,7 @@ export function MapSection({
 
     // Mark as current immediately to avoid duplicate re-entrancy while async work runs
     setCurrentStationData(stationDataId);
+    setIsLoadingStations(true);
 
     const controlPanel = await import('../config/controlPanelConfig.json');
     const stationConfig = controlPanel.stationData.options.find(opt => opt.id === stationDataId);
@@ -259,11 +275,11 @@ export function MapSection({
       setShowZones(false);
     }
 
-    // Only load stations from config if user hasn't explicitly selected a station file
+    // Load stations from the configured CSV file
     if (stationConfig.stations && !selectedStationFile) {
       try {
         const stationsUrl = `/data/${stationConfig.stations}`;
-        console.log('Loading default stations from config:', stationsUrl);
+        console.log('Loading stations from config:', stationDataId, '-> CSV file:', stationsUrl);
         const csvText = await fetchTextCached(stationsUrl);
         const parsedStations = parseCSV(csvText);
 
@@ -296,7 +312,12 @@ export function MapSection({
         onStationsChange(processedStations);
       } catch (error) {
         console.error('Error loading default stations from CSV:', error);
+      } finally {
+        setIsLoadingStations(false);
       }
+    } else {
+      // No stations to load from config
+      setIsLoadingStations(false);
     }
   }, [mapInstance, fetchTextCached, parseCSV, createApparatusFromCSV, extractApparatusCountsFromCSV, onStationsChange, selectedStationFile, gridsLayer, zonesLayer]);
   const toggleGridsLayer = useCallback(async () => {
@@ -530,10 +551,19 @@ export function MapSection({
   useEffect(() => {
     if (!mapInstance) return;
 
-    const stationDataToLoad = selectedStationData || 'default_stations';
-    if (stationDataToLoad !== currentStationData) {
-      console.log(`Loading station dataset config: ${stationDataToLoad} (prev: ${currentStationData})`);
-      loadGeographicalLayers(stationDataToLoad);
+    // Only load if a station data type is explicitly selected
+    if (!selectedStationData) {
+      console.log('No station data selected, skipping load');
+      return;
+    }
+
+    console.log(`Station data change - selectedStationData: ${selectedStationData}, currentStationData: ${currentStationData}`);
+    
+    if (selectedStationData !== currentStationData) {
+      console.log(`Loading station dataset config: ${selectedStationData} (prev: ${currentStationData})`);
+      loadGeographicalLayers(selectedStationData);
+    } else {
+      console.log(`No change needed - already loaded: ${currentStationData}`);
     }
   }, [mapInstance, selectedStationData, currentStationData, loadGeographicalLayers]);
 
@@ -608,6 +638,44 @@ export function MapSection({
       if (window.deleteStation) delete window.deleteStation;
     };
   }, []);
+
+  // Handle clear layers callback
+  useEffect(() => {
+    if (onClearLayers) {
+      const clearLayers = () => {
+        // Reset map layer toggles
+        if (gridsLayer && mapInstance) {
+          mapInstance.removeLayer(gridsLayer);
+          setShowGrids(false);
+        }
+        if (zonesLayer && mapInstance) {
+          mapInstance.removeLayer(zonesLayer);
+          setShowZones(false);
+        }
+        // Clear marker layers (stations and incidents)
+        if (markerLayer) {
+          markerLayer.clearLayers();
+        }
+        // Clear service zones
+        if (serviceZoneLayer) {
+          serviceZoneLayer.clearLayers();
+        }
+        // Clear incidents
+        setIncidents([]);
+        if (onIncidentsChange) onIncidentsChange([]);
+        if (onIncidentsCountChange) onIncidentsCountChange(0);
+      };
+      
+      // Store the clear function so it can be called from parent
+      (window as any).clearMapLayers = clearLayers;
+    }
+    
+    return () => {
+      if ((window as any).clearMapLayers) {
+        delete (window as any).clearMapLayers;
+      }
+    };
+  }, [onClearLayers, gridsLayer, zonesLayer, mapInstance, markerLayer, serviceZoneLayer, onIncidentsChange, onIncidentsCountChange]);
 
   // Load service zones (GeoJSON polygons)
   useEffect(() => {
@@ -709,6 +777,8 @@ export function MapSection({
       // Clear incidents if no incident model selected
       if (!selectedIncidentModel) {
         setIncidents([]);
+        if (onIncidentsChange) onIncidentsChange([]);
+        setIsLoadingIncidents(false);
         return;
       }
 
@@ -720,10 +790,13 @@ export function MapSection({
       // Only load incidents if the model has a dataFile
       if (!incidentModelConfig || !incidentModelConfig.dataFile) {
         setIncidents([]);
+        if (onIncidentsChange) onIncidentsChange([]);
+        setIsLoadingIncidents(false);
         return;
       }
 
       try {
+        setIsLoadingIncidents(true);
         console.log('Loading incidents from model:', selectedIncidentModel, 'dataFile:', incidentModelConfig.dataFile);
         const response = await fetch(incidentModelConfig.dataFile);
         if (!response.ok) {
@@ -746,11 +819,15 @@ export function MapSection({
         const processedIncidents = processIncidents(filteredIncidents.slice(0, 500));
         console.log('Final processed incidents:', processedIncidents.length);
         setIncidents(processedIncidents);
+        if (onIncidentsChange) onIncidentsChange(processedIncidents);
         if (onIncidentsCountChange) onIncidentsCountChange(processedIncidents.length);
       } catch (error) {
         console.error('Error loading incidents:', error);
         setIncidents([]);
+        if (onIncidentsChange) onIncidentsChange([]);
         if (onIncidentsCountChange) onIncidentsCountChange(0);
+      } finally {
+        setIsLoadingIncidents(false);
       }
     };
 
@@ -848,12 +925,8 @@ export function MapSection({
       setMarkerLayer(newMarkerLayer);
     }
 
-    // Only re-render if the number of stations changed (not just coordinates)
-    if (markerLayer && stations.length !== stationsLengthRef.current) {
-      stationsLengthRef.current = stations.length;
-      
-      // Clear existing markers if markerLayer is initialized
-      if (markerLayer) {
+    // Re-render markers when incidents or stations change
+    if (markerLayer) {
         markerLayer.clearLayers();
         setStationMarkers(new Map()); // Clear tracked markers
 
@@ -923,8 +996,7 @@ export function MapSection({
         });
         setStationMarkers(newStationMarkers);
       }
-    }
-  }, [incidents, stations.length, markerLayer, selectedDispatchPolicy, serviceZoneLayer]);
+  }, [incidents, stations, markerLayer, selectedDispatchPolicy, onStationsChange]);
 
   // Debug logging removed to reduce noise during interactions
 
@@ -932,6 +1004,23 @@ export function MapSection({
     <div className="h-full w-full bg-white relative">
       {/* Leaflet map container */}
       <div id="map" className="h-full w-full absolute inset-0" />
+      
+      {/* Loading Overlay */}
+      {(isLoadingIncidents || isLoadingStations) && (
+        <div className="absolute inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-4 shadow-lg flex items-center space-x-3">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+            <span className="text-gray-700 font-medium">
+              {isLoadingIncidents && isLoadingStations
+                ? 'Loading incidents and stations...'
+                : isLoadingIncidents
+                ? 'Loading incidents...'
+                : 'Loading stations...'
+              }
+            </span>
+          </div>
+        </div>
+      )}
       
       {/* Layer Controls */}
       {(gridsUrlRef.current || zonesUrlRef.current) && (

@@ -36,6 +36,7 @@ export default function App() {
   const [startDate, setStartDate] = useState<Date>();
   const [endDate, setEndDate] = useState<Date>();
   const [incidentsCount, setIncidentsCount] = useState<number>(0);
+  const [incidents, setIncidents] = useState<any[]>([]);
 
   const handleSimulationSuccess = (result: any) => {
     console.log('Simulation success, enabling tabs...', result);
@@ -74,11 +75,26 @@ export default function App() {
     setHasResults(false);
     setSelectedIncidentFile('');
     setSelectedStationFile('');
-    setSelectedDispatchPolicy('nearest');
+    setSelectedDispatchPolicy('');
     setSelectedServiceZoneFile('');
     setSelectedStationData('');
+    setSelectedIncidentModel('');
+    setStartDate(undefined);
+    setEndDate(undefined);
     setStations([]); // Clear stations when clearing settings
     setStationApparatus(new Map()); // Clear apparatus data
+    setStationApparatusCounts(new Map()); // Clear apparatus counts
+    setOriginalApparatusCounts(new Map()); // Clear original apparatus counts
+    setIncidentsCount(0); // Reset incidents count
+    setIncidents([]); // Clear incidents data
+    
+    // Clear map layers
+    if ((window as any).clearMapLayers) {
+      (window as any).clearMapLayers();
+    }
+    
+    // Reset active tab to statistics
+    setActiveTab('statistics');
   };
 
   return (
@@ -174,6 +190,9 @@ export default function App() {
                   startDate={startDate}
                   endDate={endDate}
                   onIncidentsCountChange={setIncidentsCount}
+                  incidents={incidents}
+                  onIncidentsChange={setIncidents}
+                  onClearLayers={handleClearSettings}
                 />
               </CardContent>
             </Card>

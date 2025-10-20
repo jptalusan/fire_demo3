@@ -57,11 +57,11 @@ export function ControlPanel({
   selectedStationData,
   onStationDataChange,
   onStationsChange, // Add this line
-  selectedDispatchPolicy = 'nearest',
+  selectedDispatchPolicy = '',
   onDispatchPolicyChange,
   selectedServiceZoneFile = '',
   onServiceZoneFileChange,
-  selectedIncidentModel = 'historical_incidents',
+  selectedIncidentModel = '',
   onIncidentModelChange,
   startDate,
   endDate,
@@ -79,9 +79,23 @@ export function ControlPanel({
   const [serviceZoneFiles, setServiceZoneFiles] = useState<string[]>([]);
   const [isSimulating, setIsSimulating] = useState(false);
   
-  // Model selection states - using defaults from config
-  const [selectedTravelTimeModel, setSelectedTravelTimeModel] = useState(controlPanelConfig.travelTimeModels.default);
-  const [selectedServiceTimeModel, setSelectedServiceTimeModel] = useState(controlPanelConfig.serviceTimeModels.default);
+  // Model selection states - start empty to require user selection
+  const [selectedTravelTimeModel, setSelectedTravelTimeModel] = useState('');
+  const [selectedServiceTimeModel, setSelectedServiceTimeModel] = useState('');
+
+  // Reset local model states when parent selections are cleared
+  useEffect(() => {
+    if (!selectedStationData) {
+      setSelectedTravelTimeModel('');
+      setSelectedServiceTimeModel('');
+    }
+  }, [selectedStationData]);
+
+  useEffect(() => {
+    if (!selectedDispatchPolicy) {
+      // Reset models when dispatch policy is cleared
+    }
+  }, [selectedDispatchPolicy]);
 
   // Utility function to handle API responses consistently
   const handleApiResponse = (data: any, key: string) => {
@@ -464,10 +478,11 @@ export function ControlPanel({
               <Label>Station Data</Label>
               <div className="mt-2">
                 <select
-                  value={selectedStationData || controlPanelConfig.stationData.default}
+                  value={selectedStationData || ''}
                   onChange={(e) => onStationDataChange?.(e.target.value)}
-                  className="w-full p-2 border rounded"
+                  className={`w-full p-2 border rounded ${!selectedStationData ? 'text-gray-400' : 'text-gray-900'}`}
                 >
+                  <option value="" disabled className="text-gray-400">Click to select station data</option>
                   {controlPanelConfig.stationData.options.map((option) => (
                     <option key={option.id} value={option.id}>
                       {option.name}
@@ -475,7 +490,10 @@ export function ControlPanel({
                   ))}
                 </select>
                 <p className="text-xs text-gray-500 mt-1">
-                  {controlPanelConfig.stationData.options.find(opt => opt.id === (selectedStationData || controlPanelConfig.stationData.default))?.description}
+                  {selectedStationData 
+                    ? controlPanelConfig.stationData.options.find(opt => opt.id === selectedStationData)?.description
+                    : 'Please select station data to begin'
+                  }
                 </p>
               </div>
             </div>
@@ -533,10 +551,11 @@ export function ControlPanel({
               <Label>Incident</Label>
               <div className="mt-2">
                 <select
-                  value={selectedIncidentModel}
+                  value={selectedIncidentModel || ''}
                   onChange={(e) => onIncidentModelChange?.(e.target.value)}
-                  className="w-full p-2 border rounded"
+                  className={`w-full p-2 border rounded ${!selectedIncidentModel ? 'text-gray-400' : 'text-gray-900'}`}
                 >
+                  <option value="" disabled className="text-gray-400">Click to select incident model</option>
                   {controlPanelConfig.incidentModels.options.map((model) => (
                     <option key={model.id} value={model.id}>
                       {model.name}
@@ -544,7 +563,10 @@ export function ControlPanel({
                   ))}
                 </select>
                 <p className="text-xs text-gray-500 mt-1">
-                  {controlPanelConfig.incidentModels.options.find(model => model.id === selectedIncidentModel)?.description}
+                  {selectedIncidentModel 
+                    ? controlPanelConfig.incidentModels.options.find(model => model.id === selectedIncidentModel)?.description
+                    : 'Please select an incident model'
+                  }
                 </p>
               </div>
             </div>
@@ -554,10 +576,11 @@ export function ControlPanel({
               <Label>Travel Time</Label>
               <div className="mt-2">
                 <select
-                  value={selectedTravelTimeModel}
+                  value={selectedTravelTimeModel || ''}
                   onChange={(e) => setSelectedTravelTimeModel(e.target.value)}
-                  className="w-full p-2 border rounded"
+                  className={`w-full p-2 border rounded ${!selectedTravelTimeModel ? 'text-gray-400' : 'text-gray-900'}`}
                 >
+                  <option value="" disabled className="text-gray-400">Click to select travel time model</option>
                   {controlPanelConfig.travelTimeModels.options.map((model) => (
                     <option key={model.id} value={model.id}>
                       {model.name}
@@ -565,7 +588,10 @@ export function ControlPanel({
                   ))}
                 </select>
                 <p className="text-xs text-gray-500 mt-1">
-                  {controlPanelConfig.travelTimeModels.options.find(model => model.id === selectedTravelTimeModel)?.description}
+                  {selectedTravelTimeModel 
+                    ? controlPanelConfig.travelTimeModels.options.find(model => model.id === selectedTravelTimeModel)?.description
+                    : 'Please select a travel time model'
+                  }
                 </p>
               </div>
             </div>
@@ -575,10 +601,11 @@ export function ControlPanel({
               <Label>Service Time</Label>
               <div className="mt-2">
                 <select
-                  value={selectedServiceTimeModel}
+                  value={selectedServiceTimeModel || ''}
                   onChange={(e) => setSelectedServiceTimeModel(e.target.value)}
-                  className="w-full p-2 border rounded"
+                  className={`w-full p-2 border rounded ${!selectedServiceTimeModel ? 'text-gray-400' : 'text-gray-900'}`}
                 >
+                  <option value="" disabled className="text-gray-400">Click to select service time model</option>
                   {controlPanelConfig.serviceTimeModels.options.map((model) => (
                     <option key={model.id} value={model.id}>
                       {model.name}
@@ -586,7 +613,10 @@ export function ControlPanel({
                   ))}
                 </select>
                 <p className="text-xs text-gray-500 mt-1">
-                  {controlPanelConfig.serviceTimeModels.options.find(model => model.id === selectedServiceTimeModel)?.description}
+                  {selectedServiceTimeModel 
+                    ? controlPanelConfig.serviceTimeModels.options.find(model => model.id === selectedServiceTimeModel)?.description
+                    : 'Please select a service time model'
+                  }
                 </p>
               </div>
             </div>
@@ -596,10 +626,11 @@ export function ControlPanel({
               <Label>Dispatch Policy</Label>
               <div className="mt-2">
                 <select
-                  value={selectedDispatchPolicy}
+                  value={selectedDispatchPolicy || ''}
                   onChange={(e) => onDispatchPolicyChange?.(e.target.value)}
-                  className="w-full p-2 border rounded"
+                  className={`w-full p-2 border rounded ${!selectedDispatchPolicy ? 'text-gray-400' : 'text-gray-900'}`}
                 >
+                  <option value="" disabled className="text-gray-400">Click to select dispatch policy</option>
                   {controlPanelConfig.dispatchPolicies.options.map((policy) => (
                     <option key={policy.id} value={policy.id}>
                       {policy.name}
@@ -607,7 +638,10 @@ export function ControlPanel({
                   ))}
                 </select>
                 <p className="text-xs text-gray-500 mt-1">
-                  {controlPanelConfig.dispatchPolicies.options.find(policy => policy.id === selectedDispatchPolicy)?.description}
+                  {selectedDispatchPolicy 
+                    ? controlPanelConfig.dispatchPolicies.options.find(policy => policy.id === selectedDispatchPolicy)?.description
+                    : 'Please select a dispatch policy'
+                  }
                 </p>
               </div>
             </div>
@@ -618,11 +652,11 @@ export function ControlPanel({
                 <Label>Service Zones Data</Label>
                 <div className="mt-2">
                   <select
-                    value={selectedServiceZoneFile}
+                    value={selectedServiceZoneFile || ''}
                     onChange={(e) => onServiceZoneFileChange?.(e.target.value)}
-                    className="w-full p-2 border rounded"
+                    className={`w-full p-2 border rounded ${!selectedServiceZoneFile ? 'text-gray-400' : 'text-gray-900'}`}
                   >
-                    <option value="">Select service zones</option>
+                    <option value="" disabled className="text-gray-400">Click to select service zones</option>
                     {serviceZoneFiles?.length > 0 ? (
                       serviceZoneFiles.map((file) => (
                         <option key={file} value={file}>
@@ -716,8 +750,9 @@ export function ControlPanel({
             {/* Save Station Configuration Button */}
             <Button
               onClick={handleSaveStationConfiguration}
+              disabled={stations.length === 0}
               variant="outline"
-              className="w-full h-10"
+              className={`w-full h-10 ${stations.length === 0 ? "opacity-50 cursor-not-allowed" : ""}`}
               size="lg"
             >
               <Download className="w-4 h-4 mr-2" />
