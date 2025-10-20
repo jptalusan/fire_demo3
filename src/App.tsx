@@ -44,13 +44,6 @@ export default function App() {
     return new Date();
   });
   const [incidentsCount, setIncidentsCount] = useState<number>(0);
-  const [incidents, setIncidents] = useState<any[]>([]);
-  
-  // Wrapper for setIncidents with logging (memoized to prevent infinite re-renders)
-  const handleIncidentsChange = useCallback((newIncidents: any[]) => {
-    console.log('App.tsx: Received incidents:', newIncidents.length, newIncidents);
-    setIncidents(newIncidents);
-  }, []);
   
   const [historicalIncidentStats, setHistoricalIncidentStats] = useState<any>(null);
   const [historicalIncidentError, setHistoricalIncidentError] = useState<string | null>(null);
@@ -115,7 +108,6 @@ export default function App() {
     setStationApparatusCounts(new Map()); // Clear apparatus counts
     setOriginalApparatusCounts(new Map()); // Clear original apparatus counts
     setIncidentsCount(0); // Reset incidents count
-    setIncidents([]); // Clear incidents data
     setHistoricalIncidentStats(null); // Clear historical incident stats
     setHistoricalIncidentError(null); // Clear historical incident errors
     
@@ -196,7 +188,6 @@ export default function App() {
             onToggleCollapse={() => setIsControlPanelCollapsed(!isControlPanelCollapsed)}
             onHistoricalIncidentStatsChange={handleHistoricalIncidentStatsChange}
             onHistoricalIncidentErrorChange={handleHistoricalIncidentErrorChange}
-            onIncidentsChange={handleIncidentsChange}
           />
         </div>
 
@@ -224,8 +215,6 @@ export default function App() {
                   startDate={startDate}
                   endDate={endDate}
                   onIncidentsCountChange={setIncidentsCount}
-                  incidents={incidents}
-                  onIncidentsChange={handleIncidentsChange}
                   onClearLayers={handleClearSettings}
                 />
               </CardContent>

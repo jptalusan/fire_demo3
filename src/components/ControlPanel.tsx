@@ -354,12 +354,11 @@ export function ControlPanel({
 
           // Step 3: Save CSV to localStorage for map to read
           localStorage.setItem('synth-incidents.csv', csvData);
+          localStorage.setItem('synth-incidents-timestamp', Date.now().toString());
           console.log('Saved synthetic incidents CSV to localStorage:', csvData.length, 'characters');
           
           // Clear any passed incidents since we're now using localStorage approach
-          if (onIncidentsChange) {
-            onIncidentsChange([]);
-          }
+          // (No longer needed - using localStorage instead of props)
 
           // Clear any previous errors
           if (onHistoricalIncidentErrorChange) {
@@ -386,9 +385,7 @@ export function ControlPanel({
           if (onHistoricalIncidentStatsChange) {
             onHistoricalIncidentStatsChange(null);
           }
-          if (onIncidentsChange) {
-            onIncidentsChange([]);
-          }
+          // No longer using onIncidentsChange - using localStorage approach
           if (onHistoricalIncidentErrorChange) {
             onHistoricalIncidentErrorChange(errorMessage);
           }
@@ -398,9 +395,7 @@ export function ControlPanel({
         localStorage.removeItem('synth-incidents.csv');
         console.log('Cleared synthetic incidents from localStorage');
         
-        if (onIncidentsChange) {
-          onIncidentsChange([]);
-        }
+        // No longer using onIncidentsChange - using localStorage approach
       }
     };
 

@@ -55,8 +55,6 @@ interface MapSectionProps {
   startDate?: Date;
   endDate?: Date;
   onIncidentsCountChange?: (count: number) => void;
-  incidents?: ProcessedIncident[];
-  onIncidentsChange?: (incidents: ProcessedIncident[]) => void;
   onClearLayers?: () => void;
 }
 
@@ -95,21 +93,38 @@ export function MapSection({
   startDate,
   endDate,
   onIncidentsCountChange,
-  incidents: externalIncidents,
-  onIncidentsChange,
   onClearLayers
 }: MapSectionProps) {
-  const [incidents, setIncidents] = useState<ProcessedIncident[]>(externalIncidents || []);
+  const [incidents, setIncidents] = useState<ProcessedIncident[]>([]);
   const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
   const [isLoadingIncidents, setIsLoadingIncidents] = useState(false);
   const [isLoadingStations, setIsLoadingStations] = useState(false);
+  
+  // State to trigger reload when synthetic incidents are generated
+  const [synthIncidentsTimestamp, setSynthIncidentsTimestamp] = useState<string | null>(null);
 
-  // Sync with external incidents state
+  // Watch for changes in synthetic incidents
   useEffect(() => {
-    if (externalIncidents !== undefined) {
-      setIncidents(externalIncidents);
-    }
-  }, [externalIncidents]);
+    const checkSynthIncidents = () => {
+      if (selectedIncidentModel === 'synthetic_incidents') {
+        const timestamp = localStorage.getItem('synth-incidents-timestamp');
+        if (timestamp && timestamp !== synthIncidentsTimestamp) {
+          console.log('Detected new synthetic incidents, triggering reload');
+          setSynthIncidentsTimestamp(timestamp);
+        }
+      }
+    };
+    
+    // Check immediately
+    checkSynthIncidents();
+    
+    // Set up interval to check for changes
+    const interval = setInterval(checkSynthIncidents, 1000);
+    
+    return () => clearInterval(interval);
+  }, [selectedIncidentModel, synthIncidentsTimestamp]);
+
+  // No longer syncing with external incidents - using localStorage approach
   const [markerLayer, setMarkerLayer] = useState<L.LayerGroup | null>(null);
   const [serviceZoneLayer, setServiceZoneLayer] = useState<L.LayerGroup | null>(null);
   const [stationMarkers, setStationMarkers] = useState<Map<string, L.Marker>>(new Map()); // Track station markers
@@ -711,7 +726,6 @@ export function MapSection({
         }
         // Clear incidents
         setIncidents([]);
-        if (onIncidentsChange) onIncidentsChange([]);
         if (onIncidentsCountChange) onIncidentsCountChange(0);
         
         // Reset current station data so it can be reloaded
@@ -731,7 +745,7 @@ export function MapSection({
         delete (window as any).clearMapLayers;
       }
     };
-  }, [onClearLayers, gridsLayer, zonesLayer, mapInstance, markerLayer, serviceZoneLayer, onIncidentsChange, onIncidentsCountChange]);
+  }, [onClearLayers, gridsLayer, zonesLayer, mapInstance, markerLayer, serviceZoneLayer, onIncidentsCountChange]);
 
   // Load service zones (GeoJSON polygons)
   useEffect(() => {
@@ -833,7 +847,6 @@ export function MapSection({
       // Clear incidents if no incident model selected
       if (!selectedIncidentModel) {
         setIncidents([]);
-        if (onIncidentsChange) onIncidentsChange([]);
         setIsLoadingIncidents(false);
         return;
       }
@@ -847,7 +860,6 @@ export function MapSection({
       if (!incidentModelConfig || !incidentModelConfig.dataFile) {
         // No valid model selected - clear everything
         setIncidents([]);
-        if (onIncidentsChange) onIncidentsChange([]);
         if (onIncidentsCountChange) onIncidentsCountChange(0);
         setIsLoadingIncidents(false);
         return;
@@ -891,12 +903,10 @@ export function MapSection({
         const processedIncidents = processIncidents(filteredIncidents.slice(0, 1000));
         console.log('Final processed incidents:', processedIncidents.length);
         setIncidents(processedIncidents);
-        if (onIncidentsChange) onIncidentsChange(processedIncidents);
         if (onIncidentsCountChange) onIncidentsCountChange(processedIncidents.length);
       } catch (error) {
         console.error('Error loading incidents:', error);
         setIncidents([]);
-        if (onIncidentsChange) onIncidentsChange([]);
         if (onIncidentsCountChange) onIncidentsCountChange(0);
       } finally {
         setIsLoadingIncidents(false);
@@ -904,7 +914,7 @@ export function MapSection({
     };
 
     loadIncidents();
-  }, [selectedIncidentModel, incidents]); // Added incidents to dependencies
+  }, [selectedIncidentModel, startDate, endDate, synthIncidentsTimestamp]); // Added synthIncidentsTimestamp to trigger reload when synthetic incidents are generated
 
   useEffect(() => {
     const loadStations = async () => {
