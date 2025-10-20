@@ -85,6 +85,7 @@ export function MapSection({
   const [selectedStationForApparatus, setSelectedStationForApparatus] = useState<ProcessedStation | null>(null);
   const [stationApparatus, setStationApparatus] = useState<Map<string, Apparatus[]>>(new Map());
   const [stationApparatusCounts, setStationApparatusCounts] = useState<Map<string, ApparatusCounts>>(new Map());
+  const [originalApparatusCounts, setOriginalApparatusCounts] = useState<Map<string, ApparatusCounts>>(new Map());
   const [editingApparatus, setEditingApparatus] = useState<string | null>(null);
   
   // Layer toggle states
@@ -318,6 +319,7 @@ export function MapSection({
           // Extract apparatus counts for the new UI
           const apparatusCounts = extractApparatusCountsFromCSV(row);
           setStationApparatusCounts(prev => new Map(prev).set(station.id, apparatusCounts));
+          setOriginalApparatusCounts(prev => new Map(prev).set(station.id, { ...apparatusCounts }));
           
           return station;
         }).filter(station => !isNaN(station.lat) && !isNaN(station.lon));
@@ -443,6 +445,15 @@ export function MapSection({
   const getApparatusCounts = useCallback((stationId: string): ApparatusCounts => {
     return stationApparatusCounts.get(stationId) || {};
   }, [stationApparatusCounts]);
+
+  // Check if an apparatus count has been modified from the original CSV value
+  const isApparatusCountModified = useCallback((stationId: string, apparatusKey: string): boolean => {
+    const originalCounts = originalApparatusCounts.get(stationId) || {};
+    const currentCounts = stationApparatusCounts.get(stationId) || {};
+    const originalCount = originalCounts[apparatusKey] || 0;
+    const currentCount = currentCounts[apparatusKey] || 0;
+    return originalCount !== currentCount;
+  }, [originalApparatusCounts, stationApparatusCounts]);
 
   // Initialize default apparatus for new stations
   useEffect(() => {
@@ -658,6 +669,7 @@ export function MapSection({
             // Extract apparatus counts for the new UI
             const apparatusCounts = extractApparatusCountsFromCSV(row);
             setStationApparatusCounts(prev => new Map(prev).set(station.id, apparatusCounts));
+            setOriginalApparatusCounts(prev => new Map(prev).set(station.id, { ...apparatusCounts }));
           }
           
           return station;
@@ -902,6 +914,7 @@ export function MapSection({
                     const currentCounts = getApparatusCounts(selectedStationForApparatus.id);
                     const count = currentCounts[apparatusType.key] || 0;
                     const isActive = count > 0;
+                    const isModified = isApparatusCountModified(selectedStationForApparatus.id, apparatusType.key);
                     
                     return (
                       <div 
@@ -909,26 +922,27 @@ export function MapSection({
                         className={`flex items-center justify-between p-3 border rounded-lg transition-all ${
                           isActive 
                             ? 'bg-blue-50 border-blue-200 shadow-sm' 
-                            : 'bg-gray-50 border-gray-200'
+                            : 'bg-gray-100 border-gray-300'
                         }`}
                       >
                         <div className="flex items-center space-x-3">
                           <div 
                             className={`w-3 h-3 rounded-full ${
-                              isActive ? 'bg-blue-500' : 'bg-gray-300'
+                              isModified ? 'bg-red-500' : (isActive ? 'bg-blue-500' : 'bg-gray-400')
                             }`}
                           />
                           <span className={`font-medium ${
                             isActive ? 'text-blue-900' : 'text-gray-700'
                           }`}>
                             {apparatusType.name}
+                            {isModified && <span className="text-xs text-red-600 ml-2 font-normal">(modified)</span>}
                           </span>
                         </div>
                         <div className="flex items-center space-x-2">
                           <button
                             onClick={() => handleApparatusCountUpdate(selectedStationForApparatus.id, apparatusType.key, count - 1)}
                             disabled={count <= 0}
-                            className="w-8 h-8 rounded-full bg-gray-200 text-gray-600 hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center text-sm font-bold"
+                            className="w-8 h-8 rounded-full bg-red-500 text-white hover:bg-red-600 disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed flex items-center justify-center text-sm font-bold"
                           >
                             -
                           </button>
@@ -952,6 +966,26 @@ export function MapSection({
                   <p className="text-sm text-gray-600">
                     {Object.values(getApparatusCounts(selectedStationForApparatus.id)).reduce((sum, count) => sum + count, 0)} units configured
                   </p>
+                </div>
+                
+                <div className="mt-4 p-2 bg-gray-50 rounded text-xs text-gray-600">
+                  <div className="flex items-center justify-between">
+                    <span>Status:</span>
+                  </div>
+                  <div className="flex items-center space-x-4 mt-1">
+                    <div className="flex items-center space-x-1">
+                      <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                      <span>Active</span>
+                    </div>
+                    <div className="flex items-center space-x-1">
+                      <div className="w-2 h-2 rounded-full bg-gray-400"></div>
+                      <span>Inactive</span>
+                    </div>
+                    <div className="flex items-center space-x-1">
+                      <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                      <span>Modified</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
