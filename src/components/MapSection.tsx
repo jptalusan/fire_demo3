@@ -713,6 +713,13 @@ export function MapSection({
         setIncidents([]);
         if (onIncidentsChange) onIncidentsChange([]);
         if (onIncidentsCountChange) onIncidentsCountChange(0);
+        
+        // Reset current station data so it can be reloaded
+        setCurrentStationData('');
+        
+        // Reset layer toggle states
+        setShowStations(true);
+        setShowIncidents(true);
       };
       
       // Store the clear function so it can be called from parent
@@ -865,7 +872,8 @@ export function MapSection({
         console.log('Showing all incidents (date filtering disabled):', filteredIncidents.length);
         
         // Process and limit incidents (reduce limit to improve performance)
-        const processedIncidents = processIncidents(filteredIncidents.slice(0, 500));
+        // TODO: This is where we filter the number of incidents.
+        const processedIncidents = processIncidents(filteredIncidents.slice(0, 1000));
         console.log('Final processed incidents:', processedIncidents.length);
         setIncidents(processedIncidents);
         if (onIncidentsChange) onIncidentsChange(processedIncidents);
