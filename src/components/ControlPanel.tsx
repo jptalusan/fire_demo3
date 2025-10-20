@@ -518,7 +518,7 @@ export function ControlPanel({
                   className="w-full p-2 border rounded text-gray-400"
                   style={{ color: selectedStationData ? '#111827' : '#9CA3AF' }}
                 >
-                  <option value="" disabled className="text-gray-400">Click to select station data</option>
+                  <option value="" disabled className="text-gray-400">Select station data</option>
                   {controlPanelConfig.stationData.options.map((option) => (
                     <option key={option.id} value={option.id}>
                       {option.name}
@@ -528,7 +528,7 @@ export function ControlPanel({
                 <p className="text-xs text-gray-500 mt-1">
                   {selectedStationData 
                     ? controlPanelConfig.stationData.options.find(opt => opt.id === selectedStationData)?.description
-                    : 'Please select station data to begin'
+                    : 'Select station data'
                   }
                 </p>
               </div>
@@ -570,7 +570,7 @@ export function ControlPanel({
                 </div>
 
                 <p className="text-xs text-gray-500">
-                  Select date range for incident analysis and simulation
+                  Select range for incidents
                 </p>
               </div>
             </div>
@@ -592,7 +592,7 @@ export function ControlPanel({
                   className="w-full p-2 border rounded text-gray-400"
                   style={{ color: selectedIncidentModel ? '#111827' : '#9CA3AF' }}
                 >
-                  <option value="" disabled className="text-gray-400">Click to select incident model</option>
+                  <option value="" disabled className="text-gray-400">Select incident model</option>
                   {controlPanelConfig.incidentModels.options.map((model) => (
                     <option key={model.id} value={model.id}>
                       {model.name}
@@ -602,7 +602,7 @@ export function ControlPanel({
                 <p className="text-xs text-gray-500 mt-1">
                   {selectedIncidentModel 
                     ? controlPanelConfig.incidentModels.options.find(model => model.id === selectedIncidentModel)?.description
-                    : 'Please select an incident model'
+                    : 'Select an incident model'
                   }
                 </p>
               </div>
@@ -618,7 +618,7 @@ export function ControlPanel({
                   className="w-full p-2 border rounded text-gray-400"
                   style={{ color: selectedTravelTimeModel ? '#111827' : '#9CA3AF' }}
                 >
-                  <option value="" disabled className="text-gray-400">Click to select travel time model</option>
+                  <option value="" disabled className="text-gray-400">Select travel time model</option>
                   {controlPanelConfig.travelTimeModels.options.map((model) => (
                     <option key={model.id} value={model.id}>
                       {model.name}
@@ -628,7 +628,7 @@ export function ControlPanel({
                 <p className="text-xs text-gray-500 mt-1">
                   {selectedTravelTimeModel 
                     ? controlPanelConfig.travelTimeModels.options.find(model => model.id === selectedTravelTimeModel)?.description
-                    : 'Please select a travel time model'
+                    : 'Select a travel time model'
                   }
                 </p>
               </div>
@@ -644,7 +644,7 @@ export function ControlPanel({
                   className="w-full p-2 border rounded text-gray-400"
                   style={{ color: selectedServiceTimeModel ? '#111827' : '#9CA3AF' }}
                 >
-                  <option value="" disabled className="text-gray-400">Click to select service time model</option>
+                  <option value="" disabled className="text-gray-400">Select service time model</option>
                   {controlPanelConfig.serviceTimeModels.options.map((model) => (
                     <option key={model.id} value={model.id}>
                       {model.name}
@@ -654,7 +654,7 @@ export function ControlPanel({
                 <p className="text-xs text-gray-500 mt-1">
                   {selectedServiceTimeModel 
                     ? controlPanelConfig.serviceTimeModels.options.find(model => model.id === selectedServiceTimeModel)?.description
-                    : 'Please select a service time model'
+                    : 'Select a service time model'
                   }
                 </p>
               </div>
@@ -670,7 +670,7 @@ export function ControlPanel({
                   className="w-full p-2 border rounded text-gray-400"
                   style={{ color: selectedDispatchPolicy ? '#111827' : '#9CA3AF' }}
                 >
-                  <option value="" disabled className="text-gray-400">Click to select dispatch policy</option>
+                  <option value="" disabled className="text-gray-400">Select dispatch policy</option>
                   {controlPanelConfig.dispatchPolicies.options.map((policy) => (
                     <option key={policy.id} value={policy.id}>
                       {policy.name}
@@ -680,7 +680,7 @@ export function ControlPanel({
                 <p className="text-xs text-gray-500 mt-1">
                   {selectedDispatchPolicy 
                     ? controlPanelConfig.dispatchPolicies.options.find(policy => policy.id === selectedDispatchPolicy)?.description
-                    : 'Please select a dispatch policy'
+                    : 'Select a dispatch policy'
                   }
                 </p>
               </div>
@@ -697,7 +697,7 @@ export function ControlPanel({
                     className="w-full p-2 border rounded text-gray-400"
                     style={{ color: selectedServiceZoneFile ? '#111827' : '#9CA3AF' }}
                   >
-                    <option value="" disabled className="text-gray-400">Click to select service zones</option>
+                    <option value="" disabled className="text-gray-400">Select service zones</option>
                     {serviceZoneFiles?.length > 0 ? (
                       serviceZoneFiles.map((file) => (
                         <option key={file} value={file}>
@@ -789,10 +789,12 @@ export function ControlPanel({
             </Button>
             {!isFormValid() && !isSimulating && (
               <div className="text-xs text-gray-500 text-center">
-                <p className="mb-1">Please select all required options:</p>
-                <p className="text-red-500 font-medium">
-                  Missing: {getMissingFields().join(', ')}
-                </p>
+                <div className="text-red-500 font-medium">
+                  Missing:
+                  {getMissingFields().map((field, index) => (
+                    <p key={index} className="mt-1">{field}</p>
+                  ))}
+                </div>
               </div>
             )}
 
