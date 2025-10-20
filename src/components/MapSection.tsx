@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { categoryColors } from '../config/categoryColors';
@@ -108,6 +108,36 @@ export function MapSection({
   const [showZones, setShowZones] = useState(false);
   const [currentStationData, setCurrentStationData] = useState<string>('');
 
+  // Caches and refs to avoid duplicate/network-heavy loads
+  const jsonCacheRef = useRef<Map<string, any>>(new Map());
+  const textCacheRef = useRef<Map<string, string>>(new Map());
+  const gridsUrlRef = useRef<string | null>(null);
+  const zonesUrlRef = useRef<string | null>(null);
+
+  const fetchJsonCached = useCallback(async (url: string) => {
+    const cache = jsonCacheRef.current;
+    if (cache.has(url)) {
+      return cache.get(url);
+    }
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Failed to fetch ${url}: ${res.status}`);
+    const data = await res.json();
+    cache.set(url, data);
+    return data;
+  }, []);
+
+  const fetchTextCached = useCallback(async (url: string) => {
+    const cache = textCacheRef.current;
+    if (cache.has(url)) {
+      return cache.get(url) as string;
+    }
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Failed to fetch ${url}: ${res.status}`);
+    const text = await res.text();
+    cache.set(url, text);
+    return text;
+  }, []);
+
   // Helper function to get apparatus data for payload
   const getStationWithApparatus = useCallback((station: ProcessedStation) => {
     const apparatus = stationApparatus.get(station.id) || [];
@@ -199,33 +229,82 @@ export function MapSection({
     }).filter(Boolean); // Filter out any null entries from empty lines
   }, []);
 
-  // Load grids and zones layers - optimized with minimal dependencies
+  // Prepare layer URLs and (optionally) load default stations for selected station dataset.
   const loadGeographicalLayers = useCallback(async (stationDataId: string) => {
     if (!mapInstance) return;
 
-    const controlPanelConfig = await import('../config/controlPanelConfig.json');
-    const stationConfig = controlPanelConfig.stationData.options.find(opt => opt.id === stationDataId);
-    
+    // Mark as current immediately to avoid duplicate re-entrancy while async work runs
+    setCurrentStationData(stationDataId);
+
+    const controlPanel = await import('../config/controlPanelConfig.json');
+    const stationConfig = controlPanel.stationData.options.find(opt => opt.id === stationDataId);
     if (!stationConfig) return;
 
-    // Clear existing layers
+    // Set URLs for lazy-loading on demand via toggles
+    gridsUrlRef.current = stationConfig.grids ? `/data/${stationConfig.grids}` : null;
+    zonesUrlRef.current = stationConfig.zones ? `/data/${stationConfig.zones}` : null;
+
+    // Clear existing layers from map but don't fetch new ones yet
     if (gridsLayer) {
       mapInstance.removeLayer(gridsLayer);
       setGridsLayer(null);
+      setShowGrids(false);
     }
     if (zonesLayer) {
       mapInstance.removeLayer(zonesLayer);
       setZonesLayer(null);
+      setShowZones(false);
     }
 
-    // Load grids layer
-    if (stationConfig.grids) {
+    // Only load stations from config if user hasn't explicitly selected a station file
+    if (stationConfig.stations && !selectedStationFile) {
       try {
-        const gridsResponse = await fetch(`/data/${stationConfig.grids}`);
-        const gridsData = await gridsResponse.json();
-        
+        const stationsUrl = `/data/${stationConfig.stations}`;
+        console.log('Loading default stations from config:', stationsUrl);
+        const csvText = await fetchTextCached(stationsUrl);
+        const parsedStations = parseCSV(csvText);
+
+        const processedStations = parsedStations.slice(0, 100).map((row, index) => {
+          const stationNumberMatch = row.Stations?.match(/(\d+)/) || row['Facility Name']?.match(/(\d+)/);
+          const stationNumber = stationNumberMatch ? parseInt(stationNumberMatch[1]) : index + 1;
+
+          const station: ProcessedStation = {
+            id: row.StationID || row.id || `station-${index}`,
+            name: row.Stations || row['Facility Name'] || `Station ${stationNumber}`,
+            address: row.Address || 'Address not available',
+            lat: parseFloat(row.lat),
+            lon: parseFloat(row.lon),
+            stationNumber: stationNumber,
+            displayName: `Station ${stationNumber.toString().padStart(2, '0')}`,
+            apparatus: []
+          };
+
+          const apparatus = createApparatusFromCSV(row, station.id, stationNumber);
+          setStationApparatus(prev => new Map(prev).set(station.id, apparatus));
+
+          const apparatusCounts = extractApparatusCountsFromCSV(row);
+          setStationApparatusCounts(prev => new Map(prev).set(station.id, apparatusCounts));
+          setOriginalApparatusCounts(prev => new Map(prev).set(station.id, { ...apparatusCounts }));
+
+          return station;
+        }).filter(station => !isNaN(station.lat) && !isNaN(station.lon));
+
+        console.log('Processed stations from CSV (default):', processedStations.length);
+        onStationsChange(processedStations);
+      } catch (error) {
+        console.error('Error loading default stations from CSV:', error);
+      }
+    }
+  }, [mapInstance, fetchTextCached, parseCSV, createApparatusFromCSV, extractApparatusCountsFromCSV, onStationsChange, selectedStationFile, gridsLayer, zonesLayer]);
+  const toggleGridsLayer = useCallback(async () => {
+    if (!mapInstance) return;
+
+    // Lazy-load grids layer on first toggle
+    if (!gridsLayer) {
+      if (!gridsUrlRef.current) return;
+      try {
+        const gridsData = await fetchJsonCached(gridsUrlRef.current);
         const gridsLayerGroup = L.layerGroup();
-        
         L.geoJSON(gridsData, {
           style: {
             color: '#2563eb',
@@ -249,24 +328,36 @@ export function MapSection({
             }
           }
         }).addTo(gridsLayerGroup);
-        
         setGridsLayer(gridsLayerGroup);
-        if (showGrids) {
-          gridsLayerGroup.addTo(mapInstance);
-        }
+        gridsLayerGroup.addTo(mapInstance);
+        setShowGrids(true);
+        return;
       } catch (error) {
         console.error('Error loading grids layer:', error);
+        return;
       }
     }
 
-    // Load zones layer
-    if (stationConfig.zones) {
+    // Toggle visibility
+    if (showGrids) {
+      mapInstance.removeLayer(gridsLayer);
+      setShowGrids(false);
+    } else {
+      gridsLayer.addTo(mapInstance);
+      setShowGrids(true);
+    }
+  }, [mapInstance, gridsLayer, showGrids, fetchJsonCached]);
+
+  // Toggle zones layer
+  const toggleZonesLayer = useCallback(async () => {
+    if (!mapInstance) return;
+
+    // Lazy-load zones layer on first toggle
+    if (!zonesLayer) {
+      if (!zonesUrlRef.current) return;
       try {
-        const zonesResponse = await fetch(`/data/${stationConfig.zones}`);
-        const zonesData = await zonesResponse.json();
-        
+        const zonesData = await fetchJsonCached(zonesUrlRef.current);
         const zonesLayerGroup = L.layerGroup();
-        
         L.geoJSON(zonesData, {
           style: {
             color: '#dc2626',
@@ -291,84 +382,25 @@ export function MapSection({
             }
           }
         }).addTo(zonesLayerGroup);
-        
         setZonesLayer(zonesLayerGroup);
-        if (showZones) {
-          zonesLayerGroup.addTo(mapInstance);
-        }
+        zonesLayerGroup.addTo(mapInstance);
+        setShowZones(true);
+        return;
       } catch (error) {
         console.error('Error loading zones layer:', error);
+        return;
       }
     }
 
-        // Load stations from CSV if configured
-        if (stationConfig.stations) {
-          try {
-            console.log('Loading stations from config:', stationConfig.stations);
-            const stationsResponse = await fetch(`/data/${stationConfig.stations}`);
-            const csvText = await stationsResponse.text();
-            const parsedStations = parseCSV(csvText);
-            
-            // Process stations and create apparatus from CSV equipment columns
-            const processedStations = parsedStations.slice(0, 100).map((row, index) => {
-              const stationNumberMatch = row.Stations?.match(/(\d+)/) || row['Facility Name']?.match(/(\d+)/);
-              const stationNumber = stationNumberMatch ? parseInt(stationNumberMatch[1]) : index + 1;
-              
-              const station: ProcessedStation = {
-                id: row.StationID || row.id || `station-${index}`,
-                name: row.Stations || row['Facility Name'] || `Station ${stationNumber}`,
-                address: row.Address || 'Address not available',
-                lat: parseFloat(row.lat),
-                lon: parseFloat(row.lon),
-                stationNumber: stationNumber,
-                displayName: `Station ${stationNumber.toString().padStart(2, '0')}`,
-                apparatus: []
-              };
-              
-              // Create apparatus from CSV equipment data
-              const apparatus = createApparatusFromCSV(row, station.id, stationNumber);
-              setStationApparatus(prev => new Map(prev).set(station.id, apparatus));
-              
-              // Extract apparatus counts for the new UI
-              const apparatusCounts = extractApparatusCountsFromCSV(row);
-              setStationApparatusCounts(prev => new Map(prev).set(station.id, apparatusCounts));
-              setOriginalApparatusCounts(prev => new Map(prev).set(station.id, { ...apparatusCounts }));
-              
-              return station;
-            }).filter(station => !isNaN(station.lat) && !isNaN(station.lon));
-            
-            console.log('Processed stations from CSV:', processedStations.length);
-            onStationsChange(processedStations);
-            
-          } catch (error) {
-            console.error('Error loading stations from CSV:', error);
-          }
-        }
-
-        setCurrentStationData(stationDataId);
-      }, [mapInstance, gridsLayer, zonesLayer, showGrids, showZones]); // Minimal dependencies to prevent unnecessary re-creation  // Toggle grids layer
-  const toggleGridsLayer = useCallback(() => {
-    if (!mapInstance || !gridsLayer) return;
-    
-    if (showGrids) {
-      mapInstance.removeLayer(gridsLayer);
-    } else {
-      gridsLayer.addTo(mapInstance);
-    }
-    setShowGrids(!showGrids);
-  }, [mapInstance, gridsLayer, showGrids]);
-
-  // Toggle zones layer
-  const toggleZonesLayer = useCallback(() => {
-    if (!mapInstance || !zonesLayer) return;
-    
+    // Toggle visibility
     if (showZones) {
       mapInstance.removeLayer(zonesLayer);
+      setShowZones(false);
     } else {
       zonesLayer.addTo(mapInstance);
+      setShowZones(true);
     }
-    setShowZones(!showZones);
-  }, [mapInstance, zonesLayer, showZones]);
+  }, [mapInstance, zonesLayer, showZones, fetchJsonCached]);
 
   // Point in polygon check
   const isPointInPolygon = (point: L.LatLng, polygon: L.LatLng[]) => {
@@ -491,15 +523,13 @@ export function MapSection({
     });
   }, [stations, stationApparatus]);
 
-  // Load geographical layers and stations when station data changes or map is ready
+  // Load geo configuration (URLs and default stations) when station dataset changes
   useEffect(() => {
     if (!mapInstance) return;
-    
+
     const stationDataToLoad = selectedStationData || 'default_stations';
-    
-    // Only load if the station data has actually changed
     if (stationDataToLoad !== currentStationData) {
-      console.log(`Loading station data: ${stationDataToLoad} (previous: ${currentStationData})`);
+      console.log(`Loading station dataset config: ${stationDataToLoad} (prev: ${currentStationData})`);
       loadGeographicalLayers(stationDataToLoad);
     }
   }, [mapInstance, selectedStationData, currentStationData, loadGeographicalLayers]);
@@ -696,27 +726,20 @@ export function MapSection({
   useEffect(() => {
     const loadStations = async () => {
       if (!selectedStationFile) {
-        onStationsChange([]); // Clear stations if no file selected
+        // If no explicit selection, leave stations as-is (might be loaded from default config)
         return;
       }
 
       try {
-        console.log('Loading stations from:', `/data/${selectedStationFile}`);
-        const response = await fetch(`/data/${selectedStationFile}`);
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const csvText = await response.text();
-        console.log('CSV text length:', csvText.length);
+        const stationsUrl = `/data/${selectedStationFile}`;
+        console.log('Loading stations from explicit selection:', stationsUrl);
+        const csvText = await fetchTextCached(stationsUrl);
         const parsedStations = parseCSV(csvText);
-        console.log('Parsed stations:', parsedStations.length);
-        
-        // Process stations and create apparatus from CSV equipment columns
+
         const processedStations = parsedStations.slice(0, 100).map((row, index) => {
-          // Use existing processStations logic but handle station number from "Stations" column
           const stationNumberMatch = row.Stations?.match(/(\d+)/) || row['Facility Name']?.match(/(\d+)/);
           const stationNumber = stationNumberMatch ? parseInt(stationNumberMatch[1]) : index + 1;
-          
+
           const station: ProcessedStation = {
             id: row.StationID || row.id || `station-${index}`,
             name: row.Stations || row['Facility Name'] || `Station ${stationNumber}`,
@@ -727,21 +750,19 @@ export function MapSection({
             displayName: `Station ${stationNumber.toString().padStart(2, '0')}`,
             apparatus: []
           };
-          
-          // Create apparatus from CSV equipment data
+
           if (selectedStationFile === 'stations.csv') {
             const apparatus = createApparatusFromCSV(row, station.id, stationNumber);
             setStationApparatus(prev => new Map(prev).set(station.id, apparatus));
-            
-            // Extract apparatus counts for the new UI
+
             const apparatusCounts = extractApparatusCountsFromCSV(row);
             setStationApparatusCounts(prev => new Map(prev).set(station.id, apparatusCounts));
             setOriginalApparatusCounts(prev => new Map(prev).set(station.id, { ...apparatusCounts }));
           }
-          
+
           return station;
         }).filter(station => !isNaN(station.lat) && !isNaN(station.lon));
-        
+
         onStationsChange(processedStations);
       } catch (error) {
         console.error('Error loading stations:', error);
@@ -749,7 +770,7 @@ export function MapSection({
     };
 
     loadStations();
-  }, [selectedStationFile, createApparatusFromCSV, extractApparatusCountsFromCSV, setStationApparatus, onStationsChange]);
+  }, [selectedStationFile, fetchTextCached, parseCSV, createApparatusFromCSV, extractApparatusCountsFromCSV, setStationApparatus, onStationsChange]);
 
   useEffect(() => {
     console.log('Initializing map');
@@ -922,10 +943,10 @@ export function MapSection({
       <div id="map" className="h-full w-full absolute inset-0" />
       
       {/* Layer Controls */}
-      {(gridsLayer || zonesLayer) && (
+      {(gridsUrlRef.current || zonesUrlRef.current) && (
         <div className="absolute top-4 right-4 bg-white rounded-lg shadow-lg p-3 space-y-2" style={{zIndex: 10000}}>
           <div className="text-sm font-semibold text-gray-700 mb-2">Map Layers</div>
-          {gridsLayer && (
+          {gridsUrlRef.current && (
             <label className="flex items-center space-x-2 cursor-pointer">
               <input
                 type="checkbox"
@@ -937,7 +958,7 @@ export function MapSection({
               <div className="w-3 h-3 bg-blue-500 border border-blue-600 rounded-sm"></div>
             </label>
           )}
-          {zonesLayer && (
+          {zonesUrlRef.current && (
             <label className="flex items-center space-x-2 cursor-pointer">
               <input
                 type="checkbox"
