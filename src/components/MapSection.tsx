@@ -123,6 +123,8 @@ export function MapSection({
   const [zonesLayer, setZonesLayer] = useState<L.LayerGroup | null>(null);
   const [showGrids, setShowGrids] = useState(false);
   const [showZones, setShowZones] = useState(false);
+  const [showStations, setShowStations] = useState(true);
+  const [showIncidents, setShowIncidents] = useState(true);
   const [currentStationData, setCurrentStationData] = useState<string>('');
 
   // Caches and refs to avoid duplicate/network-heavy loads
@@ -425,6 +427,53 @@ export function MapSection({
       setShowZones(true);
     }
   }, [mapInstance, zonesLayer, showZones, fetchJsonCached]);
+
+  // Toggle stations visibility
+  const toggleStationsLayer = useCallback(() => {
+    if (!mapInstance || !markerLayer) return;
+
+    if (showStations) {
+      mapInstance.removeLayer(markerLayer);
+      setShowStations(false);
+    } else {
+      markerLayer.addTo(mapInstance);
+      setShowStations(true);
+    }
+  }, [mapInstance, markerLayer, showStations]);
+
+  // Toggle incidents visibility  
+  const toggleIncidentsLayer = useCallback(() => {
+    if (!mapInstance) return;
+
+    // Find all incident markers and toggle their visibility
+    mapInstance.eachLayer((layer: any) => {
+      if (layer.options && layer.options.isIncidentMarker) {
+        if (showIncidents) {
+          mapInstance.removeLayer(layer);
+        }
+      }
+    });
+
+    if (!showIncidents) {
+      // Re-add incident markers if we're showing them - use simple circle markers
+      incidents.forEach(incident => {
+        const marker = L.circleMarker([incident.lat, incident.lon], {
+          radius: 6,
+          fillColor: '#fbbf24', // Yellow color
+          color: '#000000', // Black outline
+          weight: 2,
+          opacity: 1,
+          fillOpacity: 0.8,
+          // @ts-ignore - Add custom property to identify incident markers
+          isIncidentMarker: true
+        });
+        marker.bindPopup(createIncidentPopup(incident));
+        marker.addTo(mapInstance);
+      });
+    }
+
+    setShowIncidents(!showIncidents);
+  }, [mapInstance, incidents, showIncidents]);
 
   // Point in polygon check
   const isPointInPolygon = (point: L.LatLng, polygon: L.LatLng[]) => {
@@ -930,24 +979,30 @@ export function MapSection({
         markerLayer.clearLayers();
         setStationMarkers(new Map()); // Clear tracked markers
 
-        // Add incident markers first (so they appear under stations)
-        incidents.forEach(incident => {
-          const marker = L.marker([incident.lat, incident.lon], {
-            icon: L.divIcon({
-              className: 'custom-marker incident-marker',
-              html: createIncidentIcon(incident),
-              iconSize: [24, 24], // Updated size to match the new icon
-              iconAnchor: [12, 12] // Center the anchor
-            })
+        // Add incident markers first (so they appear under stations) - only if incidents are enabled
+        if (showIncidents) {
+          incidents.forEach(incident => {
+            // Use simple circle marker instead of complex HTML icon for better performance
+            const marker = L.circleMarker([incident.lat, incident.lon], {
+              radius: 6,
+              fillColor: '#fbbf24', // Yellow color
+              color: '#000000', // Black outline
+              weight: 2,
+              opacity: 1,
+              fillOpacity: 0.8,
+              // @ts-ignore - Add custom property to identify incident markers
+              isIncidentMarker: true
+            });
+
+            marker.addTo(markerLayer);
+            marker.bindPopup(createIncidentPopup(incident));
           });
+        }
 
-          marker.addTo(markerLayer);
-          marker.bindPopup(createIncidentPopup(incident));
-        });
-
-        // Add station markers on top of incidents - now draggable with detailed popups
-        const newStationMarkers = new Map<string, L.Marker>();
-        stations.forEach(station => {
+        // Add station markers on top of incidents - only if stations are enabled
+        if (showStations) {
+          const newStationMarkers = new Map<string, L.Marker>();
+          stations.forEach(station => {
           const iconHtml = createStationIcon(station);
           
           // Create custom drag handlers that update the shared state
@@ -995,8 +1050,12 @@ export function MapSection({
           newStationMarkers.set(station.id, marker);
         });
         setStationMarkers(newStationMarkers);
+        } else {
+          // Clear station markers when stations are hidden
+          setStationMarkers(new Map());
+        }
       }
-  }, [incidents, stations, markerLayer, selectedDispatchPolicy, onStationsChange]);
+  }, [incidents, stations, markerLayer, selectedDispatchPolicy, onStationsChange, showStations, showIncidents]);
 
   // Debug logging removed to reduce noise during interactions
 
@@ -1023,35 +1082,58 @@ export function MapSection({
       )}
       
       {/* Layer Controls */}
-      {(gridsUrlRef.current || zonesUrlRef.current) && (
-        <div className="absolute top-4 right-4 bg-white rounded-lg shadow-lg p-3 space-y-2" style={{zIndex: 10000}}>
-          <div className="text-sm font-semibold text-gray-700 mb-2">Map Layers</div>
-          {gridsUrlRef.current && (
-            <label className="flex items-center space-x-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={showGrids}
-                onChange={toggleGridsLayer}
-                className="form-checkbox h-4 w-4 text-blue-600"
-              />
-              <span className="text-sm text-gray-700">Grids</span>
-              <div className="w-3 h-3 bg-blue-500 border border-blue-600 rounded-sm"></div>
-            </label>
-          )}
-          {zonesUrlRef.current && (
-            <label className="flex items-center space-x-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={showZones}
-                onChange={toggleZonesLayer}
-                className="form-checkbox h-4 w-4 text-red-600"
-              />
-              <span className="text-sm text-gray-700">Zones</span>
-              <div className="w-3 h-3 bg-red-500 border border-red-600 rounded-sm"></div>
-            </label>
-          )}
-        </div>
-      )}
+      <div className="absolute top-4 right-4 bg-white rounded-lg shadow-lg p-3 space-y-2" style={{zIndex: 10000}}>
+        <div className="text-sm font-semibold text-gray-700 mb-2">Map Layers</div>
+        
+        {/* Station Layer Toggle */}
+        <label className="flex items-center space-x-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={showStations}
+            onChange={toggleStationsLayer}
+            className="form-checkbox h-4 w-4 text-blue-600"
+          />
+          <span className="text-sm text-gray-700">Stations</span>
+          <div className="w-3 h-3 bg-blue-600 border border-blue-700 rounded-sm"></div>
+        </label>
+        
+        {/* Incidents Layer Toggle */}
+        <label className="flex items-center space-x-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={showIncidents}
+            onChange={toggleIncidentsLayer}
+            className="form-checkbox h-4 w-4 text-yellow-600"
+          />
+          <span className="text-sm text-gray-700">Incidents</span>
+          <div className="w-3 h-3 bg-yellow-400 border-2 border-black rounded-full"></div>
+        </label>
+        
+        {gridsUrlRef.current && (
+          <label className="flex items-center space-x-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={showGrids}
+              onChange={toggleGridsLayer}
+              className="form-checkbox h-4 w-4 text-blue-600"
+            />
+            <span className="text-sm text-gray-700">Grids</span>
+            <div className="w-3 h-3 bg-blue-500 border border-blue-600 rounded-sm"></div>
+          </label>
+        )}
+        {zonesUrlRef.current && (
+          <label className="flex items-center space-x-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={showZones}
+              onChange={toggleZonesLayer}
+              className="form-checkbox h-4 w-4 text-red-600"
+            />
+            <span className="text-sm text-gray-700">Zones</span>
+            <div className="w-3 h-3 bg-red-500 border border-red-600 rounded-sm"></div>
+          </label>
+        )}
+      </div>
       
       {/* Apparatus Manager Sidebar */}
       {apparatusManagerOpen && selectedStationForApparatus && (
