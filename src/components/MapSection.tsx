@@ -46,6 +46,10 @@ interface MapSectionProps {
   stations: ProcessedStation[];
   onStationsChange: (stations: ProcessedStation[]) => void;
   onApparatusChange?: (stationId: string, apparatus: Apparatus[]) => void;
+  stationApparatusCounts: Map<string, ApparatusCounts>;
+  setStationApparatusCounts: React.Dispatch<React.SetStateAction<Map<string, ApparatusCounts>>>;
+  originalApparatusCounts: Map<string, ApparatusCounts>;
+  setOriginalApparatusCounts: React.Dispatch<React.SetStateAction<Map<string, ApparatusCounts>>>;
 }
 
 interface FireStation {
@@ -74,7 +78,11 @@ export function MapSection({
   selectedStationData,
   stations, 
   onStationsChange,
-  onApparatusChange
+  onApparatusChange,
+  stationApparatusCounts,
+  setStationApparatusCounts,
+  originalApparatusCounts,
+  setOriginalApparatusCounts
 }: MapSectionProps) {
   const [incidents, setIncidents] = useState<ProcessedIncident[]>([]);
   const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
@@ -84,8 +92,6 @@ export function MapSection({
   const [apparatusManagerOpen, setApparatusManagerOpen] = useState(false);
   const [selectedStationForApparatus, setSelectedStationForApparatus] = useState<ProcessedStation | null>(null);
   const [stationApparatus, setStationApparatus] = useState<Map<string, Apparatus[]>>(new Map());
-  const [stationApparatusCounts, setStationApparatusCounts] = useState<Map<string, ApparatusCounts>>(new Map());
-  const [originalApparatusCounts, setOriginalApparatusCounts] = useState<Map<string, ApparatusCounts>>(new Map());
   const [editingApparatus, setEditingApparatus] = useState<string | null>(null);
   
   // Layer toggle states

@@ -8,6 +8,11 @@ import { Play, Settings, ChevronLeft, ChevronRight } from 'lucide-react';
 import { ProcessedStation, Apparatus } from '../utils/dataProcessing';
 import controlPanelConfig from '../config/controlPanelConfig.json';
 
+// Interface for apparatus counts (matching App.tsx and MapSection)
+interface ApparatusCounts {
+  [key: string]: number;
+}
+
 interface ControlPanelProps {
   onRunSimulation: () => void;
   selectedIncidentFile: string;
@@ -18,6 +23,8 @@ interface ControlPanelProps {
   onStationFileChange: (file: string) => void;
   stations: ProcessedStation[];
   stationApparatus: Map<string, Apparatus[]>;
+  stationApparatusCounts: Map<string, ApparatusCounts>;
+  originalApparatusCounts: Map<string, ApparatusCounts>;
   selectedStationData?: string;
   onStationDataChange?: (data: string) => void;
   onStationsChange: (stations: ProcessedStation[]) => void;
@@ -39,6 +46,8 @@ export function ControlPanel({
   onStationFileChange,
   stations,
   stationApparatus,
+  stationApparatusCounts,
+  originalApparatusCounts,
   selectedStationData,
   onStationDataChange,
   onStationsChange, // Add this line
@@ -146,6 +155,39 @@ export function ControlPanel({
     }
   };
 
+  // Helper function to convert apparatus counts to simple apparatus array for payload
+  const convertApparatusCountsToSimpleArray = (counts: ApparatusCounts) => {
+    const apparatusArray: Array<{type: string, count: number}> = [];
+    
+    // APPARATUS_TYPES mapping to match MapSection
+    const APPARATUS_TYPES = [
+      { key: 'Engine_ID', name: 'Engine', csvColumn: 'Engine_ID' },
+      { key: 'Truck', name: 'Truck', csvColumn: 'Truck' },
+      { key: 'Rescue', name: 'Rescue', csvColumn: 'Rescue' },
+      { key: 'Hazard', name: 'Hazard', csvColumn: 'Hazard' },
+      { key: 'Squad', name: 'Squad', csvColumn: 'Squad' },
+      { key: 'FAST', name: 'FAST', csvColumn: 'FAST' },
+      { key: 'Medic', name: 'Medic', csvColumn: 'Medic' },
+      { key: 'Brush', name: 'Brush', csvColumn: 'Brush' },
+      { key: 'Boat', name: 'Boat', csvColumn: 'Boat' },
+      { key: 'UTV', name: 'UTV', csvColumn: 'UTV' },
+      { key: 'REACH', name: 'REACH', csvColumn: 'REACH' },
+      { key: 'Chief', name: 'Chief', csvColumn: 'Chief' }
+    ];
+
+    APPARATUS_TYPES.forEach(type => {
+      const count = counts[type.key] || 0;
+      if (count > 0) {
+        apparatusArray.push({
+          type: type.name,
+          count: count
+        });
+      }
+    });
+    
+    return apparatusArray;
+  };
+
   const handleRunSimulation = async () => {
     try {
       setIsSimulating(true); // Disable the button and show loading state
@@ -169,14 +211,22 @@ export function ControlPanel({
         selectedServiceZoneFile: selectedDispatchPolicy === 'firebeats' ? selectedServiceZoneFile : undefined,
         dispatchPolicy: selectedDispatchPolicy,
         
-        stations: stations.map(station => ({
-          id: station.id,
-          name: station.displayName,
-          lat: station.lat,
-          lng: station.lon,
-          apparatus: stationApparatus.get(station.id) || [],
-          serviceZone: station.serviceZone, // Include serviceZone in the payload
-        })),
+        stations: stations.map(station => {
+          // Use apparatus counts from the new system if available, otherwise fall back to old system
+          const apparatusCounts = stationApparatusCounts.get(station.id);
+          const apparatus = apparatusCounts 
+            ? convertApparatusCountsToSimpleArray(apparatusCounts)
+            : []; // Fallback to empty array for simple format
+            
+          return {
+            id: station.id,
+            name: station.displayName,
+            lat: station.lat,
+            lon: station.lon, // Changed from 'lng' to 'lon' to match CSV
+            apparatus: apparatus,
+            serviceZone: station.serviceZone, // Include serviceZone in the payload
+          };
+        }),
         responseTime: parseInt(responseTime),
         maxDistance: parseFloat(maxDistance),
         options: {
@@ -188,7 +238,7 @@ export function ControlPanel({
       
       console.log('Sending simulation request with payload:', payload);
       
-      const response = await fetch('http://localhost:8000/run-simulation2', {
+      const response = await fetch('http://localhost:8000/run-simulation', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

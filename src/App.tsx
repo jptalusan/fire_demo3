@@ -11,6 +11,11 @@ import { Badge } from './components/ui/badge';
 import { Flame, Shield, MapIcon } from 'lucide-react';
 import { ProcessedStation, Apparatus } from './utils/dataProcessing';
 
+// Interface for apparatus counts (matching MapSection)
+interface ApparatusCounts {
+  [key: string]: number;
+}
+
 export default function App() {
   console.log('App rendering');
   const [isSimulating, setIsSimulating] = useState(false);
@@ -23,6 +28,8 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('map');
   const [stations, setStations] = useState<ProcessedStation[]>([]);
   const [stationApparatus, setStationApparatus] = useState<Map<string, Apparatus[]>>(new Map());
+  const [stationApparatusCounts, setStationApparatusCounts] = useState<Map<string, ApparatusCounts>>(new Map());
+  const [originalApparatusCounts, setOriginalApparatusCounts] = useState<Map<string, ApparatusCounts>>(new Map());
   const [selectedStationData, setSelectedStationData] = useState<string>('');
   const [isControlPanelCollapsed, setIsControlPanelCollapsed] = useState(false);
 
@@ -125,6 +132,8 @@ export default function App() {
             onServiceZoneFileChange={setSelectedServiceZoneFile}
             stations={stations}
             stationApparatus={stationApparatus}
+            stationApparatusCounts={stationApparatusCounts}
+            originalApparatusCounts={originalApparatusCounts}
             selectedStationData={selectedStationData}
             onStationDataChange={setSelectedStationData}
             onStationsChange={setStations} // Pass the setter function
@@ -187,6 +196,10 @@ export default function App() {
                       stations={stations}
                       onStationsChange={setStations}
                       onApparatusChange={handleApparatusChange}
+                      stationApparatusCounts={stationApparatusCounts}
+                      setStationApparatusCounts={setStationApparatusCounts}
+                      originalApparatusCounts={originalApparatusCounts}
+                      setOriginalApparatusCounts={setOriginalApparatusCounts}
                     />
                   </CardContent>
                 </Card>
