@@ -115,6 +115,7 @@ export function MapSection({
   const textCacheRef = useRef<Map<string, string>>(new Map());
   const gridsUrlRef = useRef<string | null>(null);
   const zonesUrlRef = useRef<string | null>(null);
+  const stationsLengthRef = useRef<number>(0);
 
   const fetchJsonCached = useCallback(async (url: string) => {
     const cache = jsonCacheRef.current;
@@ -596,11 +597,17 @@ export function MapSection({
     console.log(`Successfully deleted station with ID: ${stationId}`);
   }, [stations, stationMarkers, markerLayer, onStationsChange]);
 
-  // Set up global delete handler - update whenever the handler changes
+  // Stabilize global delete handler: register once and reference latest via ref
+  const deleteHandlerRef = useRef(handleStationDelete);
   useEffect(() => {
-    console.log('Setting up global delete handler');
-    setupGlobalDeleteHandler(handleStationDelete);
+    deleteHandlerRef.current = handleStationDelete;
   }, [handleStationDelete]);
+  useEffect(() => {
+    setupGlobalDeleteHandler((stationId: string) => deleteHandlerRef.current(stationId));
+    return () => {
+      if (window.deleteStation) delete window.deleteStation;
+    };
+  }, []);
 
   // Load service zones (GeoJSON polygons)
   useEffect(() => {
@@ -812,10 +819,9 @@ export function MapSection({
         (position) => {
           const { latitude, longitude } = position.coords;
           map.setView([latitude, longitude], config.map.defaultView.zoom);
-          L.marker([latitude, longitude]).addTo(map).bindPopup('You are here').openPopup();
         },
         () => {
-          console.error('Geolocation permission denied');
+          // silently ignore geolocation errors
         }
       );
     }
@@ -842,6 +848,10 @@ export function MapSection({
       setMarkerLayer(newMarkerLayer);
     }
 
+    // Only re-render if the number of stations changed (not just coordinates)
+    if (markerLayer && stations.length !== stationsLengthRef.current) {
+      stationsLengthRef.current = stations.length;
+      
       // Clear existing markers if markerLayer is initialized
       if (markerLayer) {
         markerLayer.clearLayers();
@@ -871,66 +881,11 @@ export function MapSection({
           const customDragHandlers = {
             ...defaultDragHandlers,
             onStationUpdate: (updatedStation: ProcessedStation) => {
-              let finalStation = updatedStation;
-              let assignedZone = ''; // Keep track of the assigned zone
-              // If firebeats, check if station is in a service zone
-              if (selectedDispatchPolicy === 'firebeats' && serviceZoneLayer) {
-                const point = L.latLng(updatedStation.lat, updatedStation.lon);
-
-                serviceZoneLayer.eachLayer(layer => {
-                  if (layer instanceof L.GeoJSON) {
-                    layer.eachLayer(featureLayer => {
-                      if (featureLayer instanceof L.Polygon) {
-                        const latLngs = (featureLayer as L.Polygon).getLatLngs();
-                        const polygon = Array.isArray(latLngs[0]) ? latLngs[0] as L.LatLng[] : latLngs as L.LatLng[];
-                        if (isPointInPolygon(point, polygon)) {
-                          // Get zone name from properties - try common property names
-                          const props = (featureLayer as any).feature?.properties;
-                          console.log('Found polygon properties:', props); // Debug log
-                          
-                          // Try various common property names for zone identification
-                          assignedZone = props?.name || 
-                                      props?.FIRE_BEAT || 
-                                      props?.zone_name || 
-                                      props?.zone || 
-                                      props?.id || 
-                                      props?.ID || 
-                                      props?.ZONE || 
-                                      props?.fire_beat ||
-                                      props?.firebeat ||
-                                      props?.beat ||
-                                      props?.district ||
-                                      props?.area ||
-                                      `Zone ${props?.FID || props?.OBJECTID || 'Unknown'}`;
-                          
-                          console.log('Assigned zone:', assignedZone); // Debug log
-                        }
-                      }
-                    });
-                  }
-                });
-                
-                if (assignedZone) {
-                  finalStation = { ...updatedStation, serviceZone: assignedZone };
-                }
-              }
-
-              // Update the shared stations state when a marker is moved
+              // Update the shared state - marker position is already updated by Leaflet
               const updatedStations = stations.map(s => 
-                s.id === finalStation.id ? finalStation : s
+                s.id === updatedStation.id ? updatedStation : s
               );
               onStationsChange(updatedStations);
-
-              // Add visual feedback on drag-and-drop
-              if (assignedZone) {
-                const marker = stationMarkers.get(finalStation.id);
-                if (marker) {
-                  marker.bindTooltip(`Assigned to: ${assignedZone}`, { permanent: true, direction: 'top' }).openTooltip();
-                  setTimeout(() => {
-                    marker.closeTooltip().unbindTooltip();
-                  }, 2000); // Tooltip disappears after 2 seconds
-                }
-              }
             }
           };
           
@@ -968,10 +923,10 @@ export function MapSection({
         });
         setStationMarkers(newStationMarkers);
       }
-  }, [incidents, stations, markerLayer, selectedDispatchPolicy, serviceZoneLayer, onStationsChange]);
+    }
+  }, [incidents, stations.length, markerLayer, selectedDispatchPolicy, serviceZoneLayer]);
 
-  // Debug logging for sidebar state
-  console.log('MapSection render - apparatusManagerOpen:', apparatusManagerOpen, 'selectedStationForApparatus:', selectedStationForApparatus);
+  // Debug logging removed to reduce noise during interactions
 
   return (
     <div className="h-full w-full bg-white relative">

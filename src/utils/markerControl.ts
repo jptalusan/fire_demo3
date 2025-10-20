@@ -28,7 +28,6 @@ export function makeDraggableMarker(
   
   // Set up drag event handlers
   marker.on('dragstart', (e: L.LeafletEvent) => {
-    console.log(`Started dragging station ${station.displayName}`);
     if (options.onDragStart) {
       options.onDragStart(marker, station);
     }
@@ -42,7 +41,6 @@ export function makeDraggableMarker(
 
   marker.on('dragend', (e: L.DragEndEvent) => {
     const newLatLng = marker.getLatLng();
-    console.log(`Finished dragging station ${station.displayName} to:`, newLatLng);
     
     // Update the station's coordinates
     station.lat = newLatLng.lat;
@@ -110,8 +108,6 @@ export const defaultDragHandlers: DraggableMarkerOptions = {
       element.style.cursor = 'grab';
       element.style.zIndex = '';
     }
-    
-    console.log(`Station ${station.displayName} moved to: ${newLatLng.lat.toFixed(6)}, ${newLatLng.lng.toFixed(6)}`);
   }
 };
 

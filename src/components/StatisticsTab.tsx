@@ -127,7 +127,7 @@ export function StatisticsTab({ simulationResults, stations = [], incidentsCount
 
         <Card>
           <CardHeader>
-            <CardTitle>Key Metrics</CardTitle>
+            <CardTitle>Incident Types</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="space-y-2">

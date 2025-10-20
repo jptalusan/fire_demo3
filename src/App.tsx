@@ -17,7 +17,6 @@ interface ApparatusCounts {
 }
 
 export default function App() {
-  console.log('App rendering');
   const [isSimulating, setIsSimulating] = useState(false);
   const [simulationResults, setSimulationResults] = useState<any>(null);
   const [hasResults, setHasResults] = useState(false);
@@ -37,8 +36,6 @@ export default function App() {
   const [startDate, setStartDate] = useState<Date>();
   const [endDate, setEndDate] = useState<Date>();
   const [incidentsCount, setIncidentsCount] = useState<number>(0);
-
-  console.log('App state:', { isSimulating, hasResults, selectedIncidentFile });
 
   const handleSimulationSuccess = (result: any) => {
     console.log('Simulation success, enabling tabs...', result);
@@ -85,7 +82,7 @@ export default function App() {
   };
 
   return (
-    <div className="h-screen flex flex-col bg-background">
+  <div className="h-screen flex flex-col bg-background overflow-hidden">
       {/* Header */}
       <header className="border-b bg-card">
         <div className="px-6 py-3">
@@ -119,8 +116,8 @@ export default function App() {
         </div>
       </header>
 
-      {/* Main Content */}
-      <div className="flex-1 flex">
+  {/* Main Content */}
+  <div className="flex-1 flex min-h-0">
         {/* Control Panel - Collapsible */}
         <div className="flex-shrink-0">
           <ControlPanel 
@@ -153,8 +150,8 @@ export default function App() {
           />
         </div>
 
-        {/* Main Content Area - Split Layout */}
-        <div className="flex-1 flex">
+  {/* Main Content Area - Split Layout */}
+  <div className="flex-1 flex min-h-0">
           {/* Left Side - Map (always visible) */}
           <div className="flex-1 flex flex-col">
             <Card className="h-full border-0 rounded-none flex-1">
@@ -183,8 +180,8 @@ export default function App() {
           </div>
 
           {/* Right Side - Analysis Tabs */}
-          <div className="flex-1 flex flex-col">
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
+          <div className="flex-1 flex flex-col min-h-0">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col min-h-0">
               <TabsList className="flex w-full justify-between bg-muted p-1 h-10">
                 <TabsTrigger 
                   value="statistics" 
@@ -215,7 +212,7 @@ export default function App() {
                 </TabsTrigger>
               </TabsList>
 
-              <div className="flex-1 overflow-hidden">
+              <div className="flex-1 overflow-y-auto min-h-0">
                 {/* Statistics Tab */}
                 <TabsContent value="statistics" className="h-full">
                   <StatisticsTab 
