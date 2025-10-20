@@ -14,10 +14,11 @@ interface StatisticsTabProps {
   }>;
   incidentsCount?: number;
   stationApparatusCounts?: Map<string, Record<string, number>>;
+  historicalIncidentStats?: any;
 }
 
 // TODO: Hard coded minutes label performance here.
-export function StatisticsTab({ simulationResults, stations = [], incidentsCount = 0, stationApparatusCounts }: StatisticsTabProps) {
+export function StatisticsTab({ simulationResults, stations = [], incidentsCount = 0, stationApparatusCounts, historicalIncidentStats }: StatisticsTabProps) {
   // Process station report data if available
   const stationReports: StationReport[] = simulationResults?.station_report 
     ? processStationReport(simulationResults.station_report)
@@ -145,26 +146,35 @@ export function StatisticsTab({ simulationResults, stations = [], incidentsCount
           <CardContent className="space-y-3">
             <div className="flex items-center justify-between mb-3">
               <span className="font-medium">Total Incidents</span>
-              <Badge variant="secondary">{incidentsCount}</Badge>
+              <Badge variant="secondary">
+                {historicalIncidentStats?.total_incidents || incidentsCount}
+              </Badge>
             </div>
-            {/* <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span>Structure Fires</span>
-                <span>16.4%</span>
+            
+            {/* Historical Incident Statistics */}
+            {historicalIncidentStats && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">Avg Time Between Incidents</span>
+                  <Badge variant="outline">
+                    {historicalIncidentStats.average_time_between_incidents_minutes.toFixed(2)} min
+                  </Badge>
+                </div>
+                
+                {/* Incident Type Breakdown */}
+                {historicalIncidentStats.incident_counts && (
+                  <div className="space-y-2">
+                    <span className="text-sm font-medium text-muted-foreground">Incident Types:</span>
+                    {Object.entries(historicalIncidentStats.incident_counts).map(([type, count]) => (
+                      <div key={type} className="flex justify-between text-sm">
+                        <span>{type}</span>
+                        <span>{count as number}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-              <div className="flex justify-between text-sm">
-                <span>Medical Emergencies</span>
-                <span>46.5%</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span>Vehicle Accidents</span>
-                <span>24.4%</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span>Other Incidents</span>
-                <span>12.7%</span>
-              </div>
-            </div> */}
+            )}
           </CardContent>
         </Card>
       </div>

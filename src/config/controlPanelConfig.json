@@ -31,9 +31,9 @@
         "id": "historical_incidents",
         "name": "Historical Incident Data",
         "source": "api",
-        "endpoint": "/get-incidents",
+        "endpoint": "/process-incidents",
         "description": "Real historical incident patterns",
-        "dataFile": "/data/incidents.csv"
+        "dataFile": "/incidents.csv"
       },
       {
         "id": "synthetic_incidents",

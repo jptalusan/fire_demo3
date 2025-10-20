@@ -40,6 +40,7 @@ interface ControlPanelProps {
   onEndDateChange?: (date: Date | undefined) => void;
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
+  onHistoricalIncidentStatsChange?: (stats: any) => void;
 }
 
 export function ControlPanel({
@@ -69,6 +70,7 @@ export function ControlPanel({
   onEndDateChange,
   isCollapsed = false,
   onToggleCollapse,
+  onHistoricalIncidentStatsChange,
 }: ControlPanelProps) {
   const [fireStationsFile, setFireStationsFile] = useState<File | null>(null);
   const [incidentsFile, setIncidentsFile] = useState<File | null>(null);
@@ -203,6 +205,61 @@ export function ControlPanel({
       fetchServiceZoneFiles();
     }
   }, [selectedDispatchPolicy]);
+
+  // Process historical incidents when model changes to historical_incidents
+  useEffect(() => {
+    const processHistoricalIncidents = async () => {
+      if (selectedIncidentModel === 'historical_incidents') {
+        try {
+          // Get the incident model configuration
+          const incidentModelConfig = controlPanelConfig.incidentModels.options.find(
+            model => model.id === 'historical_incidents'
+          );
+          
+          if (incidentModelConfig?.dataFile) {
+            console.log('Processing historical incidents from:', incidentModelConfig.dataFile);
+            
+            // Fetch the CSV file from public folder (served by Vite dev server)
+            const csvResponse = await fetch(`/data${incidentModelConfig.dataFile}`);
+            if (!csvResponse.ok) {
+              throw new Error(`Failed to fetch CSV: ${csvResponse.status}`);
+            }
+            const csvData = await csvResponse.text();
+            
+            // Send to process-incidents endpoint
+            const response = await fetch('http://localhost:8000/process-incidents', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'text/csv',
+              },
+              body: csvData
+            });
+            
+            if (!response.ok) {
+              throw new Error(`Failed to process incidents: ${response.status}`);
+            }
+            
+            const result = await response.json();
+            console.log('Historical incident processing result:', result);
+            
+            // Pass results to parent component
+            if (onHistoricalIncidentStatsChange) {
+              onHistoricalIncidentStatsChange(result);
+            }
+          }
+        } catch (error) {
+          console.error('Error processing historical incidents:', error);
+        }
+      } else {
+        // Clear stats when switching away from historical incidents
+        if (onHistoricalIncidentStatsChange) {
+          onHistoricalIncidentStatsChange(null);
+        }
+      }
+    };
+
+    processHistoricalIncidents();
+  }, [selectedIncidentModel, onHistoricalIncidentStatsChange]);
 
   const handleFileUpload = (
     file: File | null,

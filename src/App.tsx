@@ -37,6 +37,7 @@ export default function App() {
   const [endDate, setEndDate] = useState<Date>();
   const [incidentsCount, setIncidentsCount] = useState<number>(0);
   const [incidents, setIncidents] = useState<any[]>([]);
+  const [historicalIncidentStats, setHistoricalIncidentStats] = useState<any>(null);
 
   const handleSimulationSuccess = (result: any) => {
     console.log('Simulation success, enabling tabs...', result);
@@ -87,6 +88,7 @@ export default function App() {
     setOriginalApparatusCounts(new Map()); // Clear original apparatus counts
     setIncidentsCount(0); // Reset incidents count
     setIncidents([]); // Clear incidents data
+    setHistoricalIncidentStats(null); // Clear historical incident stats
     
     // Clear map layers
     if ((window as any).clearMapLayers) {
@@ -163,6 +165,7 @@ export default function App() {
             onEndDateChange={setEndDate}
             isCollapsed={isControlPanelCollapsed}
             onToggleCollapse={() => setIsControlPanelCollapsed(!isControlPanelCollapsed)}
+            onHistoricalIncidentStatsChange={setHistoricalIncidentStats}
           />
         </div>
 
@@ -238,6 +241,7 @@ export default function App() {
                     stations={stations} 
                     incidentsCount={incidentsCount}
                     stationApparatusCounts={stationApparatusCounts}
+                    historicalIncidentStats={historicalIncidentStats}
                   />
                 </TabsContent>
 
