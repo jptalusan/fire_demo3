@@ -22,7 +22,7 @@ export default function App() {
   const [hasResults, setHasResults] = useState(false);
   const [selectedIncidentFile, setSelectedIncidentFile] = useState<string>('');
   const [selectedStationFile, setSelectedStationFile] = useState<string>('');
-  const [selectedDispatchPolicy, setSelectedDispatchPolicy] = useState<string>('nearest');
+  const [selectedDispatchPolicy, setSelectedDispatchPolicy] = useState<string>('');
   const [selectedServiceZoneFile, setSelectedServiceZoneFile] = useState<string>('');
   const [activeTab, setActiveTab] = useState('statistics');
   const [stations, setStations] = useState<ProcessedStation[]>([]);
@@ -32,7 +32,7 @@ export default function App() {
   const [selectedStationData, setSelectedStationData] = useState<string>('');
   const [isControlPanelCollapsed, setIsControlPanelCollapsed] = useState(false);
   // New states for incident model and date range
-  const [selectedIncidentModel, setSelectedIncidentModel] = useState<string>('historical_incidents');
+  const [selectedIncidentModel, setSelectedIncidentModel] = useState<string>('');
   const [startDate, setStartDate] = useState<Date>();
   const [endDate, setEndDate] = useState<Date>();
   const [incidentsCount, setIncidentsCount] = useState<number>(0);
