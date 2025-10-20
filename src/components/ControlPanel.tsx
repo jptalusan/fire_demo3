@@ -352,13 +352,13 @@ export function ControlPanel({
             onHistoricalIncidentStatsChange(stats);
           }
 
-          // Step 3: Parse CSV for map display
-          const incidents = parseCSVToIncidents(csvData);
-          console.log('Parsed incidents for map:', incidents.length);
+          // Step 3: Save CSV to localStorage for map to read
+          localStorage.setItem('synth-incidents.csv', csvData);
+          console.log('Saved synthetic incidents CSV to localStorage:', csvData.length, 'characters');
           
-          // Pass incidents to map via callback
+          // Clear any passed incidents since we're now using localStorage approach
           if (onIncidentsChange) {
-            onIncidentsChange(incidents);
+            onIncidentsChange([]);
           }
 
           // Clear any previous errors
@@ -394,7 +394,10 @@ export function ControlPanel({
           }
         }
       } else if (selectedIncidentModel !== 'historical_incidents') {
-        // Clear synthetic incidents when switching to other models (but not historical)
+        // Clear synthetic incidents from localStorage when switching to other models
+        localStorage.removeItem('synth-incidents.csv');
+        console.log('Cleared synthetic incidents from localStorage');
+        
         if (onIncidentsChange) {
           onIncidentsChange([]);
         }
@@ -402,7 +405,7 @@ export function ControlPanel({
     };
 
     processSyntheticIncidents();
-  }, [selectedIncidentModel, startDate, endDate, onHistoricalIncidentStatsChange, onHistoricalIncidentErrorChange, onIncidentsChange]);
+  }, [selectedIncidentModel, startDate, endDate, onHistoricalIncidentStatsChange, onHistoricalIncidentErrorChange]);
 
   // Helper function to parse CSV into incident objects for the map
   const parseCSVToIncidents = (csvData: string) => {
@@ -420,20 +423,31 @@ export function ControlPanel({
         incident[header] = values[index]?.trim();
       });
 
-      // Convert to the format expected by the map
+      // Convert to the format expected by the map (ProcessedIncident interface)
       if (incident.lat && incident.lon) {
+        const incidentType = incident.incident_type || 'Unknown';
+        
+        // Map incident type to category
+        let incidentTypeCategory: 'ems' | 'warning' | 'fire' = 'warning';
+        if (incidentType.toLowerCase().includes('fire') || incidentType.toLowerCase().includes('smoke')) {
+          incidentTypeCategory = 'fire';
+        } else if (incidentType.toLowerCase().includes('medical') || incidentType.toLowerCase().includes('ems')) {
+          incidentTypeCategory = 'ems';
+        }
+        
         incidents.push({
           id: incident.incident_id || `synthetic_${i}`,
+          incidentType: incidentType,
           lat: parseFloat(incident.lat),
           lon: parseFloat(incident.lon),
-          incident_type: incident.incident_type || 'Unknown',
-          incident_level: incident.incident_level || 'Unknown',
           datetime: incident.datetime || new Date().toISOString(),
-          category: incident.category || 'Unknown'
+          category: incident.category || 'Unknown',
+          incidentTypeCategory: incidentTypeCategory
         });
       }
     }
 
+    console.log('Parsed incidents for map:', incidents);
     return incidents;
   };
 

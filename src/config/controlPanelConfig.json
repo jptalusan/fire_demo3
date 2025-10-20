@@ -41,7 +41,7 @@
         "source": "generated",
         "endpoint": "/generate-incidents",
         "description": "AI-generated incident scenarios",
-        "dataFile": null
+        "dataFile": "/synth-incidents.csv"
       }
     ]
   },

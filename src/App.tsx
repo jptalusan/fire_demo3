@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { ControlPanel } from './components/ControlPanel';
 import { MapSection } from './components/MapSection';
 import { StatisticsTab } from './components/StatisticsTab';
@@ -33,12 +33,36 @@ export default function App() {
   const [isControlPanelCollapsed, setIsControlPanelCollapsed] = useState(false);
   // New states for incident model and date range
   const [selectedIncidentModel, setSelectedIncidentModel] = useState<string>('');
-  const [startDate, setStartDate] = useState<Date>();
-  const [endDate, setEndDate] = useState<Date>();
+  const [startDate, setStartDate] = useState<Date | undefined>(() => {
+    // Default to 30 days ago
+    const date = new Date();
+    date.setDate(date.getDate() - 30);
+    return date;
+  });
+  const [endDate, setEndDate] = useState<Date | undefined>(() => {
+    // Default to today
+    return new Date();
+  });
   const [incidentsCount, setIncidentsCount] = useState<number>(0);
   const [incidents, setIncidents] = useState<any[]>([]);
+  
+  // Wrapper for setIncidents with logging (memoized to prevent infinite re-renders)
+  const handleIncidentsChange = useCallback((newIncidents: any[]) => {
+    console.log('App.tsx: Received incidents:', newIncidents.length, newIncidents);
+    setIncidents(newIncidents);
+  }, []);
+  
   const [historicalIncidentStats, setHistoricalIncidentStats] = useState<any>(null);
   const [historicalIncidentError, setHistoricalIncidentError] = useState<string | null>(null);
+  
+  // Memoize other callback functions to prevent infinite re-renders
+  const handleHistoricalIncidentStatsChange = useCallback((stats: any) => {
+    setHistoricalIncidentStats(stats);
+  }, []);
+  
+  const handleHistoricalIncidentErrorChange = useCallback((error: string | null) => {
+    setHistoricalIncidentError(error);
+  }, []);
 
   const handleSimulationSuccess = (result: any) => {
     console.log('Simulation success, enabling tabs...', result);
@@ -81,8 +105,11 @@ export default function App() {
     setSelectedServiceZoneFile('');
     setSelectedStationData('');
     setSelectedIncidentModel('');
-    setStartDate(undefined);
-    setEndDate(undefined);
+    // Reset dates to defaults (30 days ago to today)
+    const defaultStartDate = new Date();
+    defaultStartDate.setDate(defaultStartDate.getDate() - 30);
+    setStartDate(defaultStartDate);
+    setEndDate(new Date());
     setStations([]); // Clear stations when clearing settings
     setStationApparatus(new Map()); // Clear apparatus data
     setStationApparatusCounts(new Map()); // Clear apparatus counts
@@ -167,9 +194,9 @@ export default function App() {
             onEndDateChange={setEndDate}
             isCollapsed={isControlPanelCollapsed}
             onToggleCollapse={() => setIsControlPanelCollapsed(!isControlPanelCollapsed)}
-            onHistoricalIncidentStatsChange={setHistoricalIncidentStats}
-            onHistoricalIncidentErrorChange={setHistoricalIncidentError}
-            onIncidentsChange={setIncidents}
+            onHistoricalIncidentStatsChange={handleHistoricalIncidentStatsChange}
+            onHistoricalIncidentErrorChange={handleHistoricalIncidentErrorChange}
+            onIncidentsChange={handleIncidentsChange}
           />
         </div>
 
@@ -198,7 +225,7 @@ export default function App() {
                   endDate={endDate}
                   onIncidentsCountChange={setIncidentsCount}
                   incidents={incidents}
-                  onIncidentsChange={setIncidents}
+                  onIncidentsChange={handleIncidentsChange}
                   onClearLayers={handleClearSettings}
                 />
               </CardContent>

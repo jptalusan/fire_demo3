@@ -843,34 +843,37 @@ export function MapSection({
         model => model.id === selectedIncidentModel
       );
 
-      // For models without dataFile (like synthetic incidents), check if incidents are provided via props
+      // Check if we have a valid incident model configuration
       if (!incidentModelConfig || !incidentModelConfig.dataFile) {
-        // If we have incidents from props (e.g., synthetic incidents), use those
-        if (incidents && incidents.length > 0) {
-          console.log('Using incidents from props:', incidents.length);
-          setIncidents(incidents);
-          if (onIncidentsCountChange) onIncidentsCountChange(incidents.length);
-          setIsLoadingIncidents(false);
-          return;
-        } else {
-          // No dataFile and no prop incidents - clear everything
-          setIncidents([]);
-          if (onIncidentsChange) onIncidentsChange([]);
-          if (onIncidentsCountChange) onIncidentsCountChange(0);
-          setIsLoadingIncidents(false);
-          return;
-        }
+        // No valid model selected - clear everything
+        setIncidents([]);
+        if (onIncidentsChange) onIncidentsChange([]);
+        if (onIncidentsCountChange) onIncidentsCountChange(0);
+        setIsLoadingIncidents(false);
+        return;
       }
 
       try {
         setIsLoadingIncidents(true);
         console.log('Loading incidents from model:', selectedIncidentModel, 'dataFile:', incidentModelConfig.dataFile);
-        // Fetch CSV from the public folder (served by Vite dev server)
-        const response = await fetch(`/data${incidentModelConfig.dataFile}`);
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+        
+        let csvText: string;
+        
+        // Check if this is synthetic incidents - get from localStorage
+        if (incidentModelConfig.dataFile === '/synth-incidents.csv') {
+          console.log('Loading synthetic incidents from localStorage');
+          csvText = localStorage.getItem('synth-incidents.csv') || '';
+          if (!csvText) {
+            throw new Error('No synthetic incidents data found. Please generate incidents first.');
+          }
+        } else {
+          // Fetch CSV from the public folder (served by Vite dev server)
+          const response = await fetch(`/data${incidentModelConfig.dataFile}`);
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          csvText = await response.text();
         }
-        const csvText = await response.text();
         console.log('CSV text length:', csvText.length);
         const parsedIncidents = parseCSV(csvText);
         console.log('Parsed incidents before filtering:', parsedIncidents.length);
