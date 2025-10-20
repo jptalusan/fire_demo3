@@ -1,5 +1,13 @@
 // Data processing utilities for map markers and popups
 
+export interface Apparatus {
+  id: string;
+  type: 'Engine' | 'Ladder' | 'Rescue' | 'Ambulance' | 'Chief';
+  name: string;
+  status: 'Available' | 'Out of Service' | 'In Use';
+  crew: number;
+}
+
 export interface ProcessedStation {
   id: string;
   name: string;
@@ -8,7 +16,7 @@ export interface ProcessedStation {
   lon: number;
   stationNumber: number;
   displayName: string;
-  apparatus: string[]; // Added apparatus list
+  apparatus: Apparatus[]; // Updated to use Apparatus interface
   serviceZone?: string; // Optional service zone for firebeats
 }
 
@@ -177,7 +185,7 @@ export function processStations(rawStations: any[]): ProcessedStation[] {
       lon: parseFloat(station.lon),
       stationNumber,
       displayName: `Station ${stationNumber.toString().padStart(2, '0')}`,
-      apparatus: [`Engine ${stationNumber.toString().padStart(2, '0')}`] // Mock apparatus data
+      apparatus: [] // Will be populated by MapSection component
     };
   }).filter(station => !isNaN(station.lat) && !isNaN(station.lon));
 }
@@ -230,19 +238,38 @@ export function createDetailedStationPopup(station: ProcessedStation, onDelete?:
         </ul>
       </div>
       
-      <div style="display: flex; gap: 8px; justify-content: flex-end;">
+      <div style="display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; margin-top: 8px;">
+        <button 
+          onclick="console.log('Apparatus clicked for ${station.id}'); window.openApparatusManager && window.openApparatusManager('${station.id}')"
+          style="
+            background-color: #059669;
+            color: white;
+            border: none;
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-size: 11px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            margin-bottom: 4px;
+          "
+          onmouseover="this.style.backgroundColor='#047857'"
+          onmouseout="this.style.backgroundColor='#059669'"
+        >
+          🚒 Apparatus
+        </button>
         <button 
           id="delete-station-${station.id}" 
-          onclick="window.deleteStation && window.deleteStation('${station.id}')"
+          onclick="console.log('Delete clicked for ${station.id}'); window.deleteStation && window.deleteStation('${station.id}')"
           style="
             background-color: #dc2626;
             color: white;
             border: none;
-            padding: 6px 12px;
+            padding: 6px 10px;
             border-radius: 4px;
-            font-size: 12px;
+            font-size: 11px;
             cursor: pointer;
             transition: background-color 0.2s;
+            margin-bottom: 4px;
           "
           onmouseover="this.style.backgroundColor='#b91c1c'"
           onmouseout="this.style.backgroundColor='#dc2626'"
@@ -255,11 +282,12 @@ export function createDetailedStationPopup(station: ProcessedStation, onDelete?:
             background-color: #6b7280;
             color: white;
             border: none;
-            padding: 6px 12px;
+            padding: 6px 10px;
             border-radius: 4px;
-            font-size: 12px;
+            font-size: 11px;
             cursor: pointer;
             transition: background-color 0.2s;
+            margin-bottom: 4px;
           "
           onmouseover="this.style.backgroundColor='#4b5563'"
           onmouseout="this.style.backgroundColor='#6b7280'"
@@ -297,25 +325,68 @@ export function createFirebeatsStationPopup(station: ProcessedStation): string {
         />
       </div>
       
-      <div style="display: flex; gap: 8px; justify-content: flex-end;">
+      <div style="display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; margin-top: 8px;">
+        <button 
+          onclick="console.log('Apparatus clicked for ${station.id}'); window.openApparatusManager && window.openApparatusManager('${station.id}')"
+          style="
+            background-color: #059669;
+            color: white;
+            border: none;
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-size: 11px;
+            cursor: pointer;
+            margin-bottom: 4px;
+          "
+          onmouseover="this.style.backgroundColor='#047857'"
+          onmouseout="this.style.backgroundColor='#059669'"
+        >
+          🚒 Apparatus
+        </button>
         <button 
           onclick="
+            console.log('Update clicked for ${station.id}');
             const input = document.getElementById('service-zone-input-${station.id}');
             if (input && window.firebeatsUpdateServiceZone) {
+              console.log('Updating zone to:', input.value);
               window.firebeatsUpdateServiceZone('${station.id}', input.value);
+            } else {
+              console.log('Input or function not found');
             }
           "
           style="
             background-color: #2563eb;
             color: white;
             border: none;
-            padding: 6px 12px;
+            padding: 6px 10px;
             border-radius: 4px;
-            font-size: 12px;
+            font-size: 11px;
             cursor: pointer;
+            margin-bottom: 4px;
           "
+          onmouseover="this.style.backgroundColor='#1d4ed8'"
+          onmouseout="this.style.backgroundColor='#2563eb'"
         >
           Update
+        </button>
+        <button 
+          id="delete-station-${station.id}" 
+          onclick="console.log('Delete clicked for ${station.id}'); window.deleteStation && window.deleteStation('${station.id}')"
+          style="
+            background-color: #dc2626;
+            color: white;
+            border: none;
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-size: 11px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            margin-bottom: 4px;
+          "
+          onmouseover="this.style.backgroundColor='#b91c1c'"
+          onmouseout="this.style.backgroundColor='#dc2626'"
+        >
+          🗑️ Delete
         </button>
         <button 
           onclick="this.closest('.leaflet-popup-content-wrapper').parentNode.querySelector('.leaflet-popup-close-button').click()"
@@ -323,11 +394,14 @@ export function createFirebeatsStationPopup(station: ProcessedStation): string {
             background-color: #6b7280;
             color: white;
             border: none;
-            padding: 6px 12px;
+            padding: 6px 10px;
             border-radius: 4px;
-            font-size: 12px;
+            font-size: 11px;
             cursor: pointer;
+            margin-bottom: 4px;
           "
+          onmouseover="this.style.backgroundColor='#4b5563'"
+          onmouseout="this.style.backgroundColor='#6b7280'"
         >
           Close
         </button>

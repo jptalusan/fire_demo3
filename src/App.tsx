@@ -9,7 +9,7 @@ import { Separator } from './components/ui/separator';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from './components/ui/tabs';
 import { Badge } from './components/ui/badge';
 import { Flame, Shield, MapIcon } from 'lucide-react';
-import { ProcessedStation } from './utils/dataProcessing';
+import { ProcessedStation, Apparatus } from './utils/dataProcessing';
 
 export default function App() {
   console.log('App rendering');
@@ -22,6 +22,8 @@ export default function App() {
   const [selectedServiceZoneFile, setSelectedServiceZoneFile] = useState<string>('');
   const [activeTab, setActiveTab] = useState('map');
   const [stations, setStations] = useState<ProcessedStation[]>([]);
+  const [stationApparatus, setStationApparatus] = useState<Map<string, Apparatus[]>>(new Map());
+  const [selectedStationData, setSelectedStationData] = useState<string>('');
   const [isControlPanelCollapsed, setIsControlPanelCollapsed] = useState(false);
 
   console.log('App state:', { isSimulating, hasResults, selectedIncidentFile });
@@ -53,6 +55,10 @@ export default function App() {
     setIsSimulating(false);
   };
 
+  const handleApparatusChange = (stationId: string, apparatus: Apparatus[]) => {
+    setStationApparatus(prev => new Map(prev).set(stationId, apparatus));
+  };
+
   const handleClearSettings = () => {
     setIsSimulating(false);
     setSimulationResults(null);
@@ -61,7 +67,9 @@ export default function App() {
     setSelectedStationFile('');
     setSelectedDispatchPolicy('nearest');
     setSelectedServiceZoneFile('');
+    setSelectedStationData('');
     setStations([]); // Clear stations when clearing settings
+    setStationApparatus(new Map()); // Clear apparatus data
   };
 
   return (
@@ -116,6 +124,9 @@ export default function App() {
             selectedServiceZoneFile={selectedServiceZoneFile}
             onServiceZoneFileChange={setSelectedServiceZoneFile}
             stations={stations}
+            stationApparatus={stationApparatus}
+            selectedStationData={selectedStationData}
+            onStationDataChange={setSelectedStationData}
             onStationsChange={setStations} // Pass the setter function
             isCollapsed={isControlPanelCollapsed}
             onToggleCollapse={() => setIsControlPanelCollapsed(!isControlPanelCollapsed)}
@@ -172,8 +183,10 @@ export default function App() {
                       selectedStationFile={selectedStationFile} 
                       selectedDispatchPolicy={selectedDispatchPolicy} // Pass dispatch policy
                       selectedServiceZoneFile={selectedServiceZoneFile}
+                      selectedStationData={selectedStationData}
                       stations={stations}
                       onStationsChange={setStations}
+                      onApparatusChange={handleApparatusChange}
                     />
                   </CardContent>
                 </Card>

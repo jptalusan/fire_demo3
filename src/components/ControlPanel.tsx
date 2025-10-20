@@ -1,4 +1,3 @@
-/// <reference types="node" />
 import React, { useState, useEffect } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -6,8 +5,8 @@ import { Label } from './ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Separator } from './ui/separator';
 import { Play, Settings, ChevronLeft, ChevronRight } from 'lucide-react';
-import { ProcessedStation } from '../utils/dataProcessing';
-import { DISPATCH_POLICIES, DispatchPolicy } from '../config/dispatchPolicies';
+import { ProcessedStation, Apparatus } from '../utils/dataProcessing';
+import controlPanelConfig from '../config/controlPanelConfig.json';
 
 interface ControlPanelProps {
   onRunSimulation: () => void;
@@ -18,7 +17,10 @@ interface ControlPanelProps {
   selectedStationFile: string;
   onStationFileChange: (file: string) => void;
   stations: ProcessedStation[];
-  onStationsChange: (stations: ProcessedStation[]) => void; // Add this line
+  stationApparatus: Map<string, Apparatus[]>;
+  selectedStationData?: string;
+  onStationDataChange?: (data: string) => void;
+  onStationsChange: (stations: ProcessedStation[]) => void;
   selectedDispatchPolicy?: string;
   onDispatchPolicyChange?: (policy: string) => void;
   selectedServiceZoneFile?: string;
@@ -36,6 +38,9 @@ export function ControlPanel({
   selectedStationFile,
   onStationFileChange,
   stations,
+  stationApparatus,
+  selectedStationData,
+  onStationDataChange,
   onStationsChange, // Add this line
   selectedDispatchPolicy = 'nearest',
   onDispatchPolicyChange,
@@ -51,7 +56,12 @@ export function ControlPanel({
   const [incidentFiles, setIncidentFiles] = useState<string[]>([]);
   const [stationFiles, setStationFiles] = useState<string[]>([]);
   const [serviceZoneFiles, setServiceZoneFiles] = useState<string[]>([]);
-  const [isSimulating, setIsSimulating] = useState(false); // Removed duplicate prop and initialized state
+  const [isSimulating, setIsSimulating] = useState(false);
+  
+  // New model selection states - using defaults from config
+  const [selectedIncidentModel, setSelectedIncidentModel] = useState(controlPanelConfig.incidentModels.default);
+  const [selectedTravelTimeModel, setSelectedTravelTimeModel] = useState(controlPanelConfig.travelTimeModels.default);
+  const [selectedServiceTimeModel, setSelectedServiceTimeModel] = useState(controlPanelConfig.serviceTimeModels.default);
 
   // Utility function to handle API responses consistently
   const handleApiResponse = (data: any, key: string) => {
@@ -142,16 +152,29 @@ export function ControlPanel({
       
       // Prepare the payload with current station positions and configuration
       const payload = {
+        // Input configurations
+        stationData: selectedStationData,
+        
+        // Model configurations
+        models: {
+          incident: selectedIncidentModel,
+          travelTime: selectedTravelTimeModel,
+          serviceTime: selectedServiceTimeModel,
+          dispatch: selectedDispatchPolicy
+        },
+        
+        // Legacy fields for backward compatibility
         selectedIncidentFile,
         selectedStationFile,
         selectedServiceZoneFile: selectedDispatchPolicy === 'firebeats' ? selectedServiceZoneFile : undefined,
         dispatchPolicy: selectedDispatchPolicy,
+        
         stations: stations.map(station => ({
           id: station.id,
           name: station.displayName,
           lat: station.lat,
           lng: station.lon,
-          apparatus: station.apparatus || [],
+          apparatus: stationApparatus.get(station.id) || [],
           serviceZone: station.serviceZone, // Include serviceZone in the payload
         })),
         responseTime: parseInt(responseTime),
@@ -235,8 +258,100 @@ export function ControlPanel({
 
           <Separator />
 
-          {/* Dispatch Policy */}
+          {/* Input Section */}
           <div className="space-y-4">
+            <h4 className="font-semibold text-gray-900">Input</h4>
+            <div>
+              <Label>Station Data</Label>
+              <div className="mt-2">
+                <select
+                  value={selectedStationData || controlPanelConfig.stationData.default}
+                  onChange={(e) => onStationDataChange?.(e.target.value)}
+                  className="w-full p-2 border rounded"
+                >
+                  {controlPanelConfig.stationData.options.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  {controlPanelConfig.stationData.options.find(opt => opt.id === (selectedStationData || controlPanelConfig.stationData.default))?.description}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* Models Section */}
+          <div className="space-y-4">
+            <h4 className="font-semibold text-gray-900">Models</h4>
+            
+            {/* Incident Model */}
+            <div>
+              <Label>Incident</Label>
+              <div className="mt-2">
+                <select
+                  value={selectedIncidentModel}
+                  onChange={(e) => setSelectedIncidentModel(e.target.value)}
+                  className="w-full p-2 border rounded"
+                >
+                  {controlPanelConfig.incidentModels.options.map((model) => (
+                    <option key={model.id} value={model.id}>
+                      {model.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  {controlPanelConfig.incidentModels.options.find(model => model.id === selectedIncidentModel)?.description}
+                </p>
+              </div>
+            </div>
+
+            {/* Travel Time Model */}
+            <div>
+              <Label>Travel Time</Label>
+              <div className="mt-2">
+                <select
+                  value={selectedTravelTimeModel}
+                  onChange={(e) => setSelectedTravelTimeModel(e.target.value)}
+                  className="w-full p-2 border rounded"
+                >
+                  {controlPanelConfig.travelTimeModels.options.map((model) => (
+                    <option key={model.id} value={model.id}>
+                      {model.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  {controlPanelConfig.travelTimeModels.options.find(model => model.id === selectedTravelTimeModel)?.description}
+                </p>
+              </div>
+            </div>
+
+            {/* Service Time Model */}
+            <div>
+              <Label>Service Time</Label>
+              <div className="mt-2">
+                <select
+                  value={selectedServiceTimeModel}
+                  onChange={(e) => setSelectedServiceTimeModel(e.target.value)}
+                  className="w-full p-2 border rounded"
+                >
+                  {controlPanelConfig.serviceTimeModels.options.map((model) => (
+                    <option key={model.id} value={model.id}>
+                      {model.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  {controlPanelConfig.serviceTimeModels.options.find(model => model.id === selectedServiceTimeModel)?.description}
+                </p>
+              </div>
+            </div>
+
+            {/* Dispatch Policy */}
             <div>
               <Label>Dispatch Policy</Label>
               <div className="mt-2">
@@ -245,61 +360,15 @@ export function ControlPanel({
                   onChange={(e) => onDispatchPolicyChange?.(e.target.value)}
                   className="w-full p-2 border rounded"
                 >
-                  {DISPATCH_POLICIES.map((policy) => (
+                  {controlPanelConfig.dispatchPolicies.options.map((policy) => (
                     <option key={policy.id} value={policy.id}>
                       {policy.name}
                     </option>
                   ))}
                 </select>
-              </div>
-            </div>
-          </div>
-
-          <Separator />
-
-          {/* File Uploads */}
-          <div className="space-y-4">
-            <div>
-              <Label>Fire Stations Data</Label>
-              <div className="mt-2">
-                <select
-                  value={selectedStationFile}
-                  onChange={(e) => onStationFileChange(e.target.value)}
-                  className="w-full p-2 border rounded"
-                >
-                  <option value="">Select stations</option>
-                  {stationFiles?.length > 0 ? (
-                    stationFiles.map((file) => (
-                      <option key={file} value={file}>
-                        {file}
-                      </option>
-                    ))
-                  ) : (
-                    <option disabled>No files available</option>
-                  )}
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <Label>Incidents Data</Label>
-              <div className="mt-2">
-                <select
-                  value={selectedIncidentFile}
-                  onChange={(e) => onIncidentFileChange(e.target.value)}
-                  className="w-full p-2 border rounded"
-                >
-                  <option value="">Select incidents</option>
-                  {incidentFiles?.length > 0 ? (
-                    incidentFiles.map((file) => (
-                      <option key={file} value={file}>
-                        {file}
-                      </option>
-                    ))
-                  ) : (
-                    <option disabled>No files available</option>
-                  )}
-                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  {controlPanelConfig.dispatchPolicies.options.find(policy => policy.id === selectedDispatchPolicy)?.description}
+                </p>
               </div>
             </div>
 
@@ -332,8 +401,8 @@ export function ControlPanel({
           <Separator />
 
           {/* Configuration Parameters */}
-          <div className="space-y-4">
-            <h4>Simulation Parameters</h4>
+          {/* <div className="space-y-4">
+            <h4 className="font-semibold text-gray-900">Simulation Parameters</h4>
 
             <div>
               <Label htmlFor="response-time">
@@ -360,11 +429,11 @@ export function ControlPanel({
             </div>
           </div>
 
-          <Separator />
+          <Separator /> */}
 
           {/* Additional Options */}
-          <div className="space-y-3">
-            <h4>Analysis Options</h4>
+          {/* <div className="space-y-3">
+            <h4 className="font-semibold text-gray-900">Analysis Options</h4>
             <div className="space-y-2">
               <label className="flex items-center space-x-2">
                 <input type="checkbox" defaultChecked className="rounded" />
@@ -381,7 +450,7 @@ export function ControlPanel({
             </div>
           </div>
 
-          <Separator />
+          <Separator /> */}
 
           {/* Run Simulation Button */}
           <div className="pt-4">

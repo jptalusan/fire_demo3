@@ -1,0 +1,163 @@
+{
+  "stationData": {
+    "default": "default_stations",
+    "options": [
+      {
+        "id": "default_stations",
+        "name": "Default Fire Stations",
+        "source": "api",
+        "endpoint": "/get-stations",
+        "description": "Standard fire station locations",
+        "grids": "custom_grid.geojson",
+        "zones": "beats_shpfile_merged.geojson",
+        "stations": "stations.csv"
+      },
+      {
+        "id": "custom_stations",
+        "name": "Custom Station Layout",
+        "source": "upload",
+        "endpoint": null,
+        "description": "User uploaded station data",
+        "grids": "custom_grid.geojson",
+        "zones": "beats_shpfile_merged.geojson",
+        "stations": "stations.csv"
+      }
+    ]
+  },
+  "incidentModels": {
+    "default": "historical_incidents",
+    "options": [
+      {
+        "id": "historical_incidents",
+        "name": "Historical Incident Data",
+        "source": "api",
+        "endpoint": "/get-incidents",
+        "description": "Real historical incident patterns"
+      },
+      {
+        "id": "synthetic_incidents",
+        "name": "Synthetic Incident Model",
+        "source": "generated",
+        "endpoint": "/generate-incidents",
+        "description": "AI-generated incident scenarios"
+      },
+      {
+        "id": "peak_demand",
+        "name": "Peak Demand Simulation",
+        "source": "generated",
+        "endpoint": "/generate-peak-incidents",
+        "description": "High-stress scenario simulation"
+      }
+    ]
+  },
+  "travelTimeModels": {
+    "default": "euclidean_distance",
+    "options": [
+      {
+        "id": "euclidean_distance",
+        "name": "Euclidean Distance",
+        "source": "calculation",
+        "endpoint": null,
+        "description": "Straight-line distance calculation",
+        "formula": "sqrt((x2-x1)^2 + (y2-y1)^2)"
+      },
+      {
+        "id": "manhattan_distance",
+        "name": "Manhattan Distance",
+        "source": "calculation",
+        "endpoint": null,
+        "description": "Grid-based distance calculation",
+        "formula": "|x2-x1| + |y2-y1|"
+      },
+      {
+        "id": "road_network",
+        "name": "Road Network Routing",
+        "source": "api",
+        "endpoint": "/calculate-route",
+        "description": "Real road network travel times"
+      },
+      {
+        "id": "traffic_aware",
+        "name": "Traffic-Aware Routing",
+        "source": "api",
+        "endpoint": "/calculate-traffic-route",
+        "description": "Travel times with traffic considerations"
+      }
+    ]
+  },
+  "serviceTimeModels": {
+    "default": "fixed_service",
+    "options": [
+      {
+        "id": "fixed_service",
+        "name": "Fixed Service Time",
+        "source": "constant",
+        "endpoint": null,
+        "description": "Constant service duration",
+        "defaultValue": 30,
+        "unit": "minutes"
+      },
+      {
+        "id": "incident_based",
+        "name": "Incident Type Based",
+        "source": "lookup",
+        "endpoint": null,
+        "description": "Service time varies by incident type",
+        "mapping": {
+          "fire": 45,
+          "ems": 25,
+          "rescue": 60
+        }
+      },
+      {
+        "id": "severity_based",
+        "name": "Severity Based",
+        "source": "calculation",
+        "endpoint": null,
+        "description": "Service time based on incident severity",
+        "formula": "baseTime + (severity * multiplier)"
+      },
+      {
+        "id": "historical_average",
+        "name": "Historical Average",
+        "source": "api",
+        "endpoint": "/get-service-times",
+        "description": "Average service times from historical data"
+      }
+    ]
+  },
+  "dispatchPolicies": {
+    "default": "nearest",
+    "options": [
+      {
+        "id": "nearest",
+        "name": "Nearest Available",
+        "source": "algorithm",
+        "endpoint": null,
+        "description": "Dispatch closest available unit"
+      },
+      {
+        "id": "firebeats",
+        "name": "Fire Beats/Service Zones",
+        "source": "algorithm",
+        "endpoint": null,
+        "description": "Zone-based dispatch with service areas",
+        "requiresServiceZones": true
+      },
+      {
+        "id": "load_balancing",
+        "name": "Load Balancing",
+        "source": "algorithm",
+        "endpoint": null,
+        "description": "Distribute workload evenly across stations"
+      },
+      {
+        "id": "priority_based",
+        "name": "Priority Based",
+        "source": "algorithm",
+        "endpoint": null,
+        "description": "Dispatch based on incident priority and unit capability"
+      }
+    ]
+  }
+}
