@@ -799,7 +799,22 @@ export function MapSection({
         markerLayer.clearLayers();
         setStationMarkers(new Map()); // Clear tracked markers
 
-        // Add station markers first (so incidents appear on top) - now draggable with detailed popups
+        // Add incident markers first (so they appear under stations)
+        incidents.forEach(incident => {
+          const marker = L.marker([incident.lat, incident.lon], {
+            icon: L.divIcon({
+              className: 'custom-marker incident-marker',
+              html: createIncidentIcon(incident),
+              iconSize: [24, 24], // Updated size to match the new icon
+              iconAnchor: [12, 12] // Center the anchor
+            })
+          });
+
+          marker.addTo(markerLayer);
+          marker.bindPopup(createIncidentPopup(incident));
+        });
+
+        // Add station markers on top of incidents - now draggable with detailed popups
         const newStationMarkers = new Map<string, L.Marker>();
         stations.forEach(station => {
           const iconHtml = createStationIcon(station);
@@ -895,21 +910,6 @@ export function MapSection({
           newStationMarkers.set(station.id, marker);
         });
         setStationMarkers(newStationMarkers);
-
-        // Add incident markers
-        incidents.forEach(incident => {
-          const marker = L.marker([incident.lat, incident.lon], {
-            icon: L.divIcon({
-              className: 'custom-marker incident-marker',
-              html: createIncidentIcon(incident),
-              iconSize: [24, 24], // Updated size to match the new icon
-              iconAnchor: [12, 12] // Center the anchor
-            })
-          });
-
-          marker.addTo(markerLayer);
-          marker.bindPopup(createIncidentPopup(incident));
-        });
       }
   }, [incidents, stations, markerLayer, selectedDispatchPolicy, serviceZoneLayer, onStationsChange]);
 

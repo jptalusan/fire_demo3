@@ -417,22 +417,22 @@ export function createFirebeatsStationPopup(station: ProcessedStation): string {
  * @returns HTML string for the marker icon
  */
 export function createStationIcon(station: ProcessedStation): string {
-  const size = 24; // Slightly bigger than the current 16px
+  const size = 32; // Increased from 24px for better visibility
   return `
     <div style="
       background-color: #dc2626;
       width: ${size}px;
       height: ${size}px;
       border-radius: 50%;
-      border: 2px solid white;
+      border: 3px solid white;
       display: flex;
       align-items: center;
       justify-content: center;
       color: white;
       font-weight: bold;
-      font-size: 10px;
+      font-size: 12px;
       font-family: Arial, sans-serif;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+      box-shadow: 0 3px 6px rgba(0,0,0,0.3);
     ">
       ${station.stationNumber}
     </div>

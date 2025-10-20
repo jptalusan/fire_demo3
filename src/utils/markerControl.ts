@@ -77,8 +77,8 @@ export function createDraggableStationMarker(
     icon: L.divIcon({
       className: 'custom-marker station-marker draggable-marker',
       html: iconHtml,
-      iconSize: [24, 24],
-      iconAnchor: [12, 12]
+      iconSize: [32, 32], // Updated to match new station icon size
+      iconAnchor: [16, 16] // Center the anchor for the new size
     }),
     draggable: true // Enable dragging
   });
