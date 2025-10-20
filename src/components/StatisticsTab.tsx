@@ -137,26 +137,21 @@ export function StatisticsTab({ simulationResults, stations = [], incidentsCount
           </CardContent>
         </Card>
 
-        {/* Apparatus Totals (key types) */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm">Total Engines</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl">{totalsByType?.['Engine_ID'] ?? 0}</div>
-            <p className="text-xs text-muted-foreground">Aggregated across all stations</p>
-          </CardContent>
-        </Card>
+        {/* Compact apparatus totals grid */}
+      </div>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm">Total Medics</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl">{totalsByType?.['Medic'] ?? 0}</div>
-            <p className="text-xs text-muted-foreground">Aggregated across all stations</p>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-2">
+        {apparatusColumns.map(col => (
+          <Card key={col.key}>
+            <CardHeader className="py-2 px-3">
+              <CardTitle className="text-[11px] font-medium">{col.label}</CardTitle>
+            </CardHeader>
+            <CardContent className="py-2 px-3">
+              <div className="text-base font-bold">{totalsByType?.[col.key] ?? 0}</div>
+              <p className="text-[10px] text-muted-foreground">Across all</p>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

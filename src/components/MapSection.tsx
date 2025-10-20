@@ -556,6 +556,29 @@ export function MapSection({
     console.log(`Filtered stations count: ${filteredStations.length} (was ${stations.length})`);
     onStationsChange(filteredStations);
     
+    // Remove from apparatus-related maps so stats update correctly
+    setStationApparatus(prev => {
+      const newMap = new Map(prev);
+      newMap.delete(stationId);
+      return newMap;
+    });
+    setStationApparatusCounts(prev => {
+      const newMap = new Map(prev);
+      newMap.delete(stationId);
+      return newMap;
+    });
+    setOriginalApparatusCounts(prev => {
+      const newMap = new Map(prev);
+      newMap.delete(stationId);
+      return newMap;
+    });
+    
+    // Close apparatus manager if the deleted station is selected
+    if (selectedStationForApparatus?.id === stationId) {
+      setApparatusManagerOpen(false);
+      setSelectedStationForApparatus(null);
+    }
+    
     // Remove marker from map
     const marker = stationMarkers.get(stationId);
     if (marker && markerLayer) {
@@ -929,6 +952,15 @@ export function MapSection({
               ? createFirebeatsStationPopup(freshStationData)
               : createDetailedStationPopup(freshStationData);
             marker.setPopupContent(freshPopupContent);
+
+            // Auto-open apparatus manager sidebar when popup opens
+            setSelectedStationForApparatus(freshStationData);
+            setApparatusManagerOpen(true);
+          });
+
+          // Auto-close apparatus manager when popup closes
+          marker.on('popupclose', () => {
+            setApparatusManagerOpen(false);
           });
           
           // Track the marker
