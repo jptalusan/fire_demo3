@@ -25,7 +25,7 @@ export default function App() {
   const [selectedStationFile, setSelectedStationFile] = useState<string>('');
   const [selectedDispatchPolicy, setSelectedDispatchPolicy] = useState<string>('nearest');
   const [selectedServiceZoneFile, setSelectedServiceZoneFile] = useState<string>('');
-  const [activeTab, setActiveTab] = useState('map');
+  const [activeTab, setActiveTab] = useState('statistics');
   const [stations, setStations] = useState<ProcessedStation[]>([]);
   const [stationApparatus, setStationApparatus] = useState<Map<string, Apparatus[]>>(new Map());
   const [stationApparatusCounts, setStationApparatusCounts] = useState<Map<string, ApparatusCounts>>(new Map());
@@ -152,88 +152,90 @@ export default function App() {
           />
         </div>
 
-        {/* Main Content Area - 5/6 width */}
-        <div className="flex-1 flex flex-col">
-          {/* Main Tabs */}
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
-            <TabsList className="flex w-full justify-between bg-muted p-1 h-10">
-              <TabsTrigger value="map" className="data-[state=active]:bg-background relative">
-                <span className={activeTab === 'map' ? 'bg-white text-gray-800 px-4 py-1 rounded-full' : ''}>
-                  Map
-                </span>
-              </TabsTrigger>
-              <TabsTrigger 
-                value="statistics" 
-                disabled={!hasResults} 
-                className={`data-[state=active]:bg-background relative ${!hasResults ? "opacity-50 cursor-not-allowed" : ""}`}
-              >
-                <span className={activeTab === 'statistics' ? 'bg-white text-gray-800 px-4 py-1 rounded-full' : ''}>
-                  Statistics
-                </span>
-              </TabsTrigger>
-              <TabsTrigger 
-                value="simulation" 
-                disabled={!hasResults} 
-                className={`data-[state=active]:bg-background relative ${!hasResults ? "opacity-50 cursor-not-allowed" : ""}`}
-              >
-                <span className={activeTab === 'simulation' ? 'bg-white text-gray-800 px-4 py-1 rounded-full' : ''}>
-                  Simulation Results
-                </span>
-              </TabsTrigger>
-              <TabsTrigger 
-                value="plots" 
-                disabled={!hasResults} 
-                className={`data-[state=active]:bg-background relative ${!hasResults ? "opacity-50 cursor-not-allowed" : ""}`}
-              >
-                <span className={activeTab === 'plots' ? 'bg-white text-gray-800 px-4 py-1 rounded-full' : ''}>
-                  Plots
-                </span>
-              </TabsTrigger>
-            </TabsList>
+        {/* Main Content Area - Split Layout */}
+        <div className="flex-1 flex">
+          {/* Left Side - Map (always visible) */}
+          <div className="flex-1 flex flex-col">
+            <div className="bg-muted p-1 h-10 flex items-center">
+              <div className="bg-white text-gray-800 px-4 py-1 rounded-full">
+                Map
+              </div>
+            </div>
+            <Card className="h-full border-0 rounded-none flex-1">
+              <CardContent className="p-0 h-full flex-1 overflow-hidden">
+                <MapSection 
+                  simulationResults={simulationResults} 
+                  selectedIncidentFile={selectedIncidentFile} 
+                  selectedStationFile={selectedStationFile} 
+                  selectedDispatchPolicy={selectedDispatchPolicy} // Pass dispatch policy
+                  selectedServiceZoneFile={selectedServiceZoneFile}
+                  selectedStationData={selectedStationData}
+                  stations={stations}
+                  onStationsChange={setStations}
+                  onApparatusChange={handleApparatusChange}
+                  stationApparatusCounts={stationApparatusCounts}
+                  setStationApparatusCounts={setStationApparatusCounts}
+                  originalApparatusCounts={originalApparatusCounts}
+                  setOriginalApparatusCounts={setOriginalApparatusCounts}
+                  selectedIncidentModel={selectedIncidentModel}
+                  startDate={startDate}
+                  endDate={endDate}
+                />
+              </CardContent>
+            </Card>
+          </div>
 
-            <div className="flex-1 overflow-hidden">
-              {/* Map Tab */}
-              <TabsContent value="map" className="h-full flex flex-col">
-                <Card className="h-full border-0 rounded-none flex-1">
-                  <CardContent className="p-0 h-full flex-1 overflow-hidden">
-                    <MapSection 
-                      simulationResults={simulationResults} 
-                      selectedIncidentFile={selectedIncidentFile} 
-                      selectedStationFile={selectedStationFile} 
-                      selectedDispatchPolicy={selectedDispatchPolicy} // Pass dispatch policy
-                      selectedServiceZoneFile={selectedServiceZoneFile}
-                      selectedStationData={selectedStationData}
-                      stations={stations}
-                      onStationsChange={setStations}
-                      onApparatusChange={handleApparatusChange}
-                      stationApparatusCounts={stationApparatusCounts}
-                      setStationApparatusCounts={setStationApparatusCounts}
-                      originalApparatusCounts={originalApparatusCounts}
-                      setOriginalApparatusCounts={setOriginalApparatusCounts}
-                      selectedIncidentModel={selectedIncidentModel}
-                      startDate={startDate}
-                      endDate={endDate}
-                    />
-                  </CardContent>
-                </Card>
-              </TabsContent>
+          {/* Right Side - Analysis Tabs */}
+          <div className="flex-1 flex flex-col">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
+              <TabsList className="flex w-full justify-between bg-muted p-1 h-10">
+                <TabsTrigger 
+                  value="statistics" 
+                  disabled={!hasResults} 
+                  className={`data-[state=active]:bg-background relative ${!hasResults ? "opacity-50 cursor-not-allowed" : ""}`}
+                >
+                  <span className={activeTab === 'statistics' ? 'bg-white text-gray-800 px-4 py-1 rounded-full' : ''}>
+                    Statistics
+                  </span>
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="simulation" 
+                  disabled={!hasResults} 
+                  className={`data-[state=active]:bg-background relative ${!hasResults ? "opacity-50 cursor-not-allowed" : ""}`}
+                >
+                  <span className={activeTab === 'simulation' ? 'bg-white text-gray-800 px-4 py-1 rounded-full' : ''}>
+                    Simulation Results
+                  </span>
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="plots" 
+                  disabled={!hasResults} 
+                  className={`data-[state=active]:bg-background relative ${!hasResults ? "opacity-50 cursor-not-allowed" : ""}`}
+                >
+                  <span className={activeTab === 'plots' ? 'bg-white text-gray-800 px-4 py-1 rounded-full' : ''}>
+                    Plots
+                  </span>
+                </TabsTrigger>
+              </TabsList>
 
-              {/* Statistics Tab */}
-              <TabsContent value="statistics" className="h-full">
-                <StatisticsTab simulationResults={simulationResults} />
-              </TabsContent>
+              <div className="flex-1 overflow-hidden">
+                {/* Statistics Tab */}
+                <TabsContent value="statistics" className="h-full">
+                  <StatisticsTab simulationResults={simulationResults} />
+                </TabsContent>
 
-              {/* Simulation Results Tab */}
-              <TabsContent value="simulation" className="h-full">
-                <SimulationTab hasResults={hasResults} simulationResults={simulationResults} />
-              </TabsContent>
+                {/* Simulation Results Tab */}
+                <TabsContent value="simulation" className="h-full">
+                  <SimulationTab hasResults={hasResults} simulationResults={simulationResults} />
+                </TabsContent>
 
-              {/* Plots Tab */}
+                {/* Plots Tab */}
                 <TabsContent value="plots" className="h-full">
                   <PlotsTab simulationResults={simulationResults} />
-              </TabsContent>
-            </div>
-          </Tabs>
+                </TabsContent>
+              </div>
+            </Tabs>
+          </div>
         </div>
       </div>
 
