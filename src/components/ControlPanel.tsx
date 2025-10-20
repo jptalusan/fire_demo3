@@ -72,6 +72,10 @@ export function ControlPanel({
   const [selectedTravelTimeModel, setSelectedTravelTimeModel] = useState(controlPanelConfig.travelTimeModels.default);
   const [selectedServiceTimeModel, setSelectedServiceTimeModel] = useState(controlPanelConfig.serviceTimeModels.default);
 
+  // Date range state
+  const [startDate, setStartDate] = useState<Date>();
+  const [endDate, setEndDate] = useState<Date>();
+
   // Utility function to handle API responses consistently
   const handleApiResponse = (data: any, key: string) => {
     console.log('Raw response data:', data); // Log the entire response object
@@ -196,6 +200,10 @@ export function ControlPanel({
       const payload = {
         // Input configurations
         stationData: selectedStationData,
+        dateRange: {
+          startDate: startDate ? startDate.toISOString() : null,
+          endDate: endDate ? endDate.toISOString() : null
+        },
         
         // Model configurations
         models: {
@@ -311,6 +319,8 @@ export function ControlPanel({
           {/* Input Section */}
           <div className="space-y-4">
             <h4 className="font-semibold text-gray-900">Input</h4>
+            
+            {/* Station Data */}
             <div>
               <Label>Station Data</Label>
               <div className="mt-2">
@@ -327,6 +337,47 @@ export function ControlPanel({
                 </select>
                 <p className="text-xs text-gray-500 mt-1">
                   {controlPanelConfig.stationData.options.find(opt => opt.id === (selectedStationData || controlPanelConfig.stationData.default))?.description}
+                </p>
+              </div>
+            </div>
+
+            {/* Date Range Selector */}
+            <div>
+              <Label>Date Range</Label>
+              <div className="mt-2 space-y-2">
+                {/* Start Date */}
+                <div>
+                  <Label className="text-sm text-gray-600">From</Label>
+                  <input
+                    type="date"
+                    value={startDate ? startDate.toISOString().split('T')[0] : ''}
+                    onChange={(e) => {
+                      const date = e.target.value ? new Date(e.target.value) : undefined;
+                      setStartDate(date);
+                    }}
+                    max={endDate ? endDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0]}
+                    className="w-full p-2 border rounded"
+                  />
+                </div>
+
+                {/* End Date */}
+                <div>
+                  <Label className="text-sm text-gray-600">To</Label>
+                  <input
+                    type="date"
+                    value={endDate ? endDate.toISOString().split('T')[0] : ''}
+                    onChange={(e) => {
+                      const date = e.target.value ? new Date(e.target.value) : undefined;
+                      setEndDate(date);
+                    }}
+                    min={startDate ? startDate.toISOString().split('T')[0] : undefined}
+                    max={new Date().toISOString().split('T')[0]}
+                    className="w-full p-2 border rounded"
+                  />
+                </div>
+
+                <p className="text-xs text-gray-500">
+                  Select date range for incident analysis and simulation
                 </p>
               </div>
             </div>
