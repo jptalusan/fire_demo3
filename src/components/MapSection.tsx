@@ -141,6 +141,21 @@ export function MapSection({
     return apparatus;
   }, []);
 
+  // Parse CSV data
+  const parseCSV = useCallback((csvText: string) => {
+    const lines = csvText.trim().split('\n');
+    if (lines.length < 2) return [];
+    const headers = lines[0].split(',').map(h => h.trim());
+    return lines.slice(1).map(line => {
+      if (!line.trim()) return null;
+      const values = line.split(',');
+      return headers.reduce((obj, header, index) => {
+        obj[header] = values[index]?.trim() || '';
+        return obj;
+      }, {} as any);
+    }).filter(Boolean); // Filter out any null entries from empty lines
+  }, []);
+
   // Load grids and zones layers
   const loadGeographicalLayers = useCallback(async (stationDataId: string) => {
     if (!mapInstance) return;
@@ -243,8 +258,47 @@ export function MapSection({
       }
     }
 
+    // Load stations from CSV if configured
+    if (stationConfig.stations) {
+      try {
+        console.log('Loading stations from config:', stationConfig.stations);
+        const stationsResponse = await fetch(`/data/${stationConfig.stations}`);
+        const csvText = await stationsResponse.text();
+        const parsedStations = parseCSV(csvText);
+        
+        // Process stations and create apparatus from CSV equipment columns
+        const processedStations = parsedStations.slice(0, 100).map((row, index) => {
+          const stationNumberMatch = row.Stations?.match(/(\d+)/) || row['Facility Name']?.match(/(\d+)/);
+          const stationNumber = stationNumberMatch ? parseInt(stationNumberMatch[1]) : index + 1;
+          
+          const station: ProcessedStation = {
+            id: row.StationID || row.id || `station-${index}`,
+            name: row.Stations || row['Facility Name'] || `Station ${stationNumber}`,
+            address: row.Address || 'Address not available',
+            lat: parseFloat(row.lat),
+            lon: parseFloat(row.lon),
+            stationNumber: stationNumber,
+            displayName: `Station ${stationNumber.toString().padStart(2, '0')}`,
+            apparatus: []
+          };
+          
+          // Create apparatus from CSV equipment data
+          const apparatus = createApparatusFromCSV(row, station.id, stationNumber);
+          setStationApparatus(prev => new Map(prev).set(station.id, apparatus));
+          
+          return station;
+        }).filter(station => !isNaN(station.lat) && !isNaN(station.lon));
+        
+        console.log('Processed stations from CSV:', processedStations.length);
+        onStationsChange(processedStations);
+        
+      } catch (error) {
+        console.error('Error loading stations from CSV:', error);
+      }
+    }
+
     setCurrentStationData(stationDataId);
-  }, [mapInstance, gridsLayer, zonesLayer, showGrids, showZones]);
+  }, [mapInstance, gridsLayer, zonesLayer, showGrids, showZones, parseCSV, createApparatusFromCSV, setStationApparatus, onStationsChange]);
 
   // Toggle grids layer
   const toggleGridsLayer = useCallback(() => {
@@ -564,20 +618,6 @@ export function MapSection({
 
     loadStations();
   }, [selectedStationFile, createApparatusFromCSV, setStationApparatus, onStationsChange]);
-
-  const parseCSV = (csvText: string) => {
-    const lines = csvText.trim().split('\n');
-    if (lines.length < 2) return [];
-    const headers = lines[0].split(',').map(h => h.trim());
-    return lines.slice(1).map(line => {
-      if (!line.trim()) return null;
-      const values = line.split(',');
-      return headers.reduce((obj, header, index) => {
-        obj[header] = values[index]?.trim() || '';
-        return obj;
-      }, {} as any);
-    }).filter(Boolean); // Filter out any null entries from empty lines
-  };
 
   useEffect(() => {
     console.log('Initializing map');
