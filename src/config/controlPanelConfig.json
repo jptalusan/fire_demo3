@@ -32,21 +32,24 @@
         "name": "Historical Incident Data",
         "source": "api",
         "endpoint": "/get-incidents",
-        "description": "Real historical incident patterns"
+        "description": "Real historical incident patterns",
+        "dataFile": "/data/incidents.csv"
       },
       {
         "id": "synthetic_incidents",
         "name": "Synthetic Incident Model",
         "source": "generated",
         "endpoint": "/generate-incidents",
-        "description": "AI-generated incident scenarios"
+        "description": "AI-generated incident scenarios",
+        "dataFile": null
       },
       {
         "id": "peak_demand",
         "name": "Peak Demand Simulation",
         "source": "generated",
         "endpoint": "/generate-peak-incidents",
-        "description": "High-stress scenario simulation"
+        "description": "High-stress scenario simulation",
+        "dataFile": null
       }
     ]
   },

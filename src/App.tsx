@@ -32,6 +32,10 @@ export default function App() {
   const [originalApparatusCounts, setOriginalApparatusCounts] = useState<Map<string, ApparatusCounts>>(new Map());
   const [selectedStationData, setSelectedStationData] = useState<string>('');
   const [isControlPanelCollapsed, setIsControlPanelCollapsed] = useState(false);
+  // New states for incident model and date range
+  const [selectedIncidentModel, setSelectedIncidentModel] = useState<string>('historical_incidents');
+  const [startDate, setStartDate] = useState<Date>();
+  const [endDate, setEndDate] = useState<Date>();
 
   console.log('App state:', { isSimulating, hasResults, selectedIncidentFile });
 
@@ -137,6 +141,12 @@ export default function App() {
             selectedStationData={selectedStationData}
             onStationDataChange={setSelectedStationData}
             onStationsChange={setStations} // Pass the setter function
+            selectedIncidentModel={selectedIncidentModel}
+            onIncidentModelChange={setSelectedIncidentModel}
+            startDate={startDate}
+            endDate={endDate}
+            onStartDateChange={setStartDate}
+            onEndDateChange={setEndDate}
             isCollapsed={isControlPanelCollapsed}
             onToggleCollapse={() => setIsControlPanelCollapsed(!isControlPanelCollapsed)}
           />
@@ -200,6 +210,9 @@ export default function App() {
                       setStationApparatusCounts={setStationApparatusCounts}
                       originalApparatusCounts={originalApparatusCounts}
                       setOriginalApparatusCounts={setOriginalApparatusCounts}
+                      selectedIncidentModel={selectedIncidentModel}
+                      startDate={startDate}
+                      endDate={endDate}
                     />
                   </CardContent>
                 </Card>

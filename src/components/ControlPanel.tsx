@@ -32,6 +32,12 @@ interface ControlPanelProps {
   onDispatchPolicyChange?: (policy: string) => void;
   selectedServiceZoneFile?: string;
   onServiceZoneFileChange?: (file: string) => void;
+  selectedIncidentModel?: string;
+  onIncidentModelChange?: (model: string) => void;
+  startDate?: Date;
+  endDate?: Date;
+  onStartDateChange?: (date: Date | undefined) => void;
+  onEndDateChange?: (date: Date | undefined) => void;
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
 }
@@ -55,6 +61,12 @@ export function ControlPanel({
   onDispatchPolicyChange,
   selectedServiceZoneFile = '',
   onServiceZoneFileChange,
+  selectedIncidentModel = 'historical_incidents',
+  onIncidentModelChange,
+  startDate,
+  endDate,
+  onStartDateChange,
+  onEndDateChange,
   isCollapsed = false,
   onToggleCollapse,
 }: ControlPanelProps) {
@@ -67,14 +79,9 @@ export function ControlPanel({
   const [serviceZoneFiles, setServiceZoneFiles] = useState<string[]>([]);
   const [isSimulating, setIsSimulating] = useState(false);
   
-  // New model selection states - using defaults from config
-  const [selectedIncidentModel, setSelectedIncidentModel] = useState(controlPanelConfig.incidentModels.default);
+  // Model selection states - using defaults from config
   const [selectedTravelTimeModel, setSelectedTravelTimeModel] = useState(controlPanelConfig.travelTimeModels.default);
   const [selectedServiceTimeModel, setSelectedServiceTimeModel] = useState(controlPanelConfig.serviceTimeModels.default);
-
-  // Date range state
-  const [startDate, setStartDate] = useState<Date>();
-  const [endDate, setEndDate] = useState<Date>();
 
   // Utility function to handle API responses consistently
   const handleApiResponse = (data: any, key: string) => {
@@ -353,7 +360,7 @@ export function ControlPanel({
                     value={startDate ? startDate.toISOString().split('T')[0] : ''}
                     onChange={(e) => {
                       const date = e.target.value ? new Date(e.target.value) : undefined;
-                      setStartDate(date);
+                      onStartDateChange?.(date);
                     }}
                     max={endDate ? endDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0]}
                     className="w-full p-2 border rounded"
@@ -368,7 +375,7 @@ export function ControlPanel({
                     value={endDate ? endDate.toISOString().split('T')[0] : ''}
                     onChange={(e) => {
                       const date = e.target.value ? new Date(e.target.value) : undefined;
-                      setEndDate(date);
+                      onEndDateChange?.(date);
                     }}
                     min={startDate ? startDate.toISOString().split('T')[0] : undefined}
                     max={new Date().toISOString().split('T')[0]}
@@ -395,7 +402,7 @@ export function ControlPanel({
               <div className="mt-2">
                 <select
                   value={selectedIncidentModel}
-                  onChange={(e) => setSelectedIncidentModel(e.target.value)}
+                  onChange={(e) => onIncidentModelChange?.(e.target.value)}
                   className="w-full p-2 border rounded"
                 >
                   {controlPanelConfig.incidentModels.options.map((model) => (

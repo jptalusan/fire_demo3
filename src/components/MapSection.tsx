@@ -5,6 +5,7 @@ import { categoryColors } from '../config/categoryColors';
 import { processStations, createDetailedStationPopup, createFirebeatsStationPopup, createStationIcon, ProcessedStation, processIncidents, createIncidentPopup, createIncidentIcon, ProcessedIncident, Apparatus } from '../utils/dataProcessing';
 import { createDraggableStationMarker, defaultDragHandlers, setupGlobalDeleteHandler } from '../utils/markerControl';
 import config from '../config/mapConfig.json';
+import controlPanelConfig from '../config/controlPanelConfig.json';
 
 // Apparatus counts interface for the new design
 interface ApparatusCounts {
@@ -50,6 +51,9 @@ interface MapSectionProps {
   setStationApparatusCounts: React.Dispatch<React.SetStateAction<Map<string, ApparatusCounts>>>;
   originalApparatusCounts: Map<string, ApparatusCounts>;
   setOriginalApparatusCounts: React.Dispatch<React.SetStateAction<Map<string, ApparatusCounts>>>;
+  selectedIncidentModel?: string;
+  startDate?: Date;
+  endDate?: Date;
 }
 
 interface FireStation {
@@ -82,7 +86,10 @@ export function MapSection({
   stationApparatusCounts,
   setStationApparatusCounts,
   originalApparatusCounts,
-  setOriginalApparatusCounts
+  setOriginalApparatusCounts,
+  selectedIncidentModel,
+  startDate,
+  endDate
 }: MapSectionProps) {
   const [incidents, setIncidents] = useState<ProcessedIncident[]>([]);
   const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
@@ -605,32 +612,88 @@ export function MapSection({
     loadServiceZones();
   }, [selectedServiceZoneFile, serviceZoneLayer]);
 
+  // Helper function to filter incidents by date range
+  const filterIncidentsByDateRange = useCallback((incidents: any[], startDate?: Date, endDate?: Date) => {
+    if (!startDate && !endDate) {
+      return incidents; // No date filtering
+    }
+
+    return incidents.filter(incident => {
+      if (!incident.datetime) {
+        return true; // Include incidents without datetime
+      }
+
+      const incidentDate = new Date(incident.datetime);
+      
+      // Check if the date is valid
+      if (isNaN(incidentDate.getTime())) {
+        return true; // Include incidents with invalid dates
+      }
+
+      // Filter by start date
+      if (startDate && incidentDate < startDate) {
+        return false;
+      }
+
+      // Filter by end date (include the entire end date)
+      if (endDate) {
+        const endOfDay = new Date(endDate);
+        endOfDay.setHours(23, 59, 59, 999); // End of the selected day
+        if (incidentDate > endOfDay) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, []);
+
   useEffect(() => {
     const loadIncidents = async () => {
-      if (!selectedIncidentFile) {
-        setIncidents([]); // Clear incidents if no file selected
+      // Clear incidents if no incident model selected
+      if (!selectedIncidentModel) {
+        setIncidents([]);
+        return;
+      }
+
+      // Find the selected incident model configuration
+      const incidentModelConfig = controlPanelConfig.incidentModels.options.find(
+        model => model.id === selectedIncidentModel
+      );
+
+      // Only load incidents if the model has a dataFile
+      if (!incidentModelConfig || !incidentModelConfig.dataFile) {
+        setIncidents([]);
         return;
       }
 
       try {
-        console.log('Loading incidents from:', `/data/${selectedIncidentFile}`);
-        const response = await fetch(`/data/${selectedIncidentFile}`);
+        console.log('Loading incidents from model:', selectedIncidentModel, 'dataFile:', incidentModelConfig.dataFile);
+        const response = await fetch(incidentModelConfig.dataFile);
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
         const csvText = await response.text();
         console.log('CSV text length:', csvText.length);
         const parsedIncidents = parseCSV(csvText);
-        console.log('Parsed incidents:', parsedIncidents.length);
-        const processedIncidents = processIncidents(parsedIncidents.slice(0, 500)); // Process and limit to first 500
+        console.log('Parsed incidents before filtering:', parsedIncidents.length);
+        
+        // Filter incidents by date range
+        const filteredIncidents = filterIncidentsByDateRange(parsedIncidents, startDate, endDate);
+        console.log('Incidents after date filtering:', filteredIncidents.length);
+        
+        // Process and limit incidents (increase limit since we're filtering)
+        const processedIncidents = processIncidents(filteredIncidents.slice(0, 1000));
+        console.log('Final processed incidents:', processedIncidents.length);
         setIncidents(processedIncidents);
       } catch (error) {
         console.error('Error loading incidents:', error);
+        setIncidents([]);
       }
     };
 
     loadIncidents();
-  }, [selectedIncidentFile]);
+  }, [selectedIncidentModel, startDate, endDate, filterIncidentsByDateRange]);
 
   useEffect(() => {
     const loadStations = async () => {
