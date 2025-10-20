@@ -199,7 +199,7 @@ export function MapSection({
     }).filter(Boolean); // Filter out any null entries from empty lines
   }, []);
 
-  // Load grids and zones layers
+  // Load grids and zones layers - optimized with minimal dependencies
   const loadGeographicalLayers = useCallback(async (stationDataId: string) => {
     if (!mapInstance) return;
 
@@ -301,54 +301,52 @@ export function MapSection({
       }
     }
 
-    // Load stations from CSV if configured
-    if (stationConfig.stations) {
-      try {
-        console.log('Loading stations from config:', stationConfig.stations);
-        const stationsResponse = await fetch(`/data/${stationConfig.stations}`);
-        const csvText = await stationsResponse.text();
-        const parsedStations = parseCSV(csvText);
-        
-        // Process stations and create apparatus from CSV equipment columns
-        const processedStations = parsedStations.slice(0, 100).map((row, index) => {
-          const stationNumberMatch = row.Stations?.match(/(\d+)/) || row['Facility Name']?.match(/(\d+)/);
-          const stationNumber = stationNumberMatch ? parseInt(stationNumberMatch[1]) : index + 1;
-          
-          const station: ProcessedStation = {
-            id: row.StationID || row.id || `station-${index}`,
-            name: row.Stations || row['Facility Name'] || `Station ${stationNumber}`,
-            address: row.Address || 'Address not available',
-            lat: parseFloat(row.lat),
-            lon: parseFloat(row.lon),
-            stationNumber: stationNumber,
-            displayName: `Station ${stationNumber.toString().padStart(2, '0')}`,
-            apparatus: []
-          };
-          
-          // Create apparatus from CSV equipment data
-          const apparatus = createApparatusFromCSV(row, station.id, stationNumber);
-          setStationApparatus(prev => new Map(prev).set(station.id, apparatus));
-          
-          // Extract apparatus counts for the new UI
-          const apparatusCounts = extractApparatusCountsFromCSV(row);
-          setStationApparatusCounts(prev => new Map(prev).set(station.id, apparatusCounts));
-          setOriginalApparatusCounts(prev => new Map(prev).set(station.id, { ...apparatusCounts }));
-          
-          return station;
-        }).filter(station => !isNaN(station.lat) && !isNaN(station.lon));
-        
-        console.log('Processed stations from CSV:', processedStations.length);
-        onStationsChange(processedStations);
-        
-      } catch (error) {
-        console.error('Error loading stations from CSV:', error);
-      }
-    }
+        // Load stations from CSV if configured
+        if (stationConfig.stations) {
+          try {
+            console.log('Loading stations from config:', stationConfig.stations);
+            const stationsResponse = await fetch(`/data/${stationConfig.stations}`);
+            const csvText = await stationsResponse.text();
+            const parsedStations = parseCSV(csvText);
+            
+            // Process stations and create apparatus from CSV equipment columns
+            const processedStations = parsedStations.slice(0, 100).map((row, index) => {
+              const stationNumberMatch = row.Stations?.match(/(\d+)/) || row['Facility Name']?.match(/(\d+)/);
+              const stationNumber = stationNumberMatch ? parseInt(stationNumberMatch[1]) : index + 1;
+              
+              const station: ProcessedStation = {
+                id: row.StationID || row.id || `station-${index}`,
+                name: row.Stations || row['Facility Name'] || `Station ${stationNumber}`,
+                address: row.Address || 'Address not available',
+                lat: parseFloat(row.lat),
+                lon: parseFloat(row.lon),
+                stationNumber: stationNumber,
+                displayName: `Station ${stationNumber.toString().padStart(2, '0')}`,
+                apparatus: []
+              };
+              
+              // Create apparatus from CSV equipment data
+              const apparatus = createApparatusFromCSV(row, station.id, stationNumber);
+              setStationApparatus(prev => new Map(prev).set(station.id, apparatus));
+              
+              // Extract apparatus counts for the new UI
+              const apparatusCounts = extractApparatusCountsFromCSV(row);
+              setStationApparatusCounts(prev => new Map(prev).set(station.id, apparatusCounts));
+              setOriginalApparatusCounts(prev => new Map(prev).set(station.id, { ...apparatusCounts }));
+              
+              return station;
+            }).filter(station => !isNaN(station.lat) && !isNaN(station.lon));
+            
+            console.log('Processed stations from CSV:', processedStations.length);
+            onStationsChange(processedStations);
+            
+          } catch (error) {
+            console.error('Error loading stations from CSV:', error);
+          }
+        }
 
-    setCurrentStationData(stationDataId);
-  }, [mapInstance, gridsLayer, zonesLayer, showGrids, showZones, parseCSV, createApparatusFromCSV, extractApparatusCountsFromCSV, setStationApparatus, onStationsChange]);
-
-  // Toggle grids layer
+        setCurrentStationData(stationDataId);
+      }, [mapInstance, gridsLayer, zonesLayer, showGrids, showZones]); // Minimal dependencies to prevent unnecessary re-creation  // Toggle grids layer
   const toggleGridsLayer = useCallback(() => {
     if (!mapInstance || !gridsLayer) return;
     
@@ -493,20 +491,16 @@ export function MapSection({
     });
   }, [stations, stationApparatus]);
 
-  // Load geographical layers when station data changes or on initial load
+  // Load geographical layers and stations when station data changes or map is ready
   useEffect(() => {
-    const stationDataToLoad = selectedStationData || 'default_stations'; // Use default if none selected
+    if (!mapInstance) return;
     
+    const stationDataToLoad = selectedStationData || 'default_stations';
+    
+    // Only load if the station data has actually changed
     if (stationDataToLoad !== currentStationData) {
+      console.log(`Loading station data: ${stationDataToLoad} (previous: ${currentStationData})`);
       loadGeographicalLayers(stationDataToLoad);
-    }
-  }, [selectedStationData, currentStationData, loadGeographicalLayers]);
-
-  // Load default layers when map instance is ready
-  useEffect(() => {
-    if (mapInstance && !currentStationData) {
-      const defaultStationData = selectedStationData || 'default_stations';
-      loadGeographicalLayers(defaultStationData);
     }
   }, [mapInstance, selectedStationData, currentStationData, loadGeographicalLayers]);
 
@@ -678,12 +672,16 @@ export function MapSection({
         const parsedIncidents = parseCSV(csvText);
         console.log('Parsed incidents before filtering:', parsedIncidents.length);
         
-        // Filter incidents by date range
-        const filteredIncidents = filterIncidentsByDateRange(parsedIncidents, startDate, endDate);
-        console.log('Incidents after date filtering:', filteredIncidents.length);
+        // TEMPORARILY COMMENTED OUT: Filter incidents by date range
+        // const filteredIncidents = filterIncidentsByDateRange(parsedIncidents, startDate, endDate);
+        // console.log('Incidents after date filtering:', filteredIncidents.length);
         
-        // Process and limit incidents (increase limit since we're filtering)
-        const processedIncidents = processIncidents(filteredIncidents.slice(0, 1000));
+        // For now, show all incidents without date filtering
+        const filteredIncidents = parsedIncidents;
+        console.log('Showing all incidents (date filtering disabled):', filteredIncidents.length);
+        
+        // Process and limit incidents (reduce limit to improve performance)
+        const processedIncidents = processIncidents(filteredIncidents.slice(0, 500));
         console.log('Final processed incidents:', processedIncidents.length);
         setIncidents(processedIncidents);
       } catch (error) {
@@ -693,7 +691,7 @@ export function MapSection({
     };
 
     loadIncidents();
-  }, [selectedIncidentModel, startDate, endDate, filterIncidentsByDateRange]);
+  }, [selectedIncidentModel]); // Temporarily removed: startDate, endDate, filterIncidentsByDateRange
 
   useEffect(() => {
     const loadStations = async () => {

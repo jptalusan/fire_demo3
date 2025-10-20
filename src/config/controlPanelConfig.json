@@ -54,46 +54,32 @@
     ]
   },
   "travelTimeModels": {
-    "default": "euclidean_distance",
+    "default": "OSRM",
     "options": [
       {
-        "id": "euclidean_distance",
-        "name": "Euclidean Distance",
+        "id": "OSRM",
+        "name": "OSRM-based Travel Times",
         "source": "calculation",
         "endpoint": null,
         "description": "Straight-line distance calculation",
         "formula": "sqrt((x2-x1)^2 + (y2-y1)^2)"
       },
       {
-        "id": "manhattan_distance",
-        "name": "Manhattan Distance",
+        "id": "Arc GIS",
+        "name": "Arc GIS-based Travel Times",
         "source": "calculation",
         "endpoint": null,
         "description": "Grid-based distance calculation",
         "formula": "|x2-x1| + |y2-y1|"
-      },
-      {
-        "id": "road_network",
-        "name": "Road Network Routing",
-        "source": "api",
-        "endpoint": "/calculate-route",
-        "description": "Real road network travel times"
-      },
-      {
-        "id": "traffic_aware",
-        "name": "Traffic-Aware Routing",
-        "source": "api",
-        "endpoint": "/calculate-traffic-route",
-        "description": "Travel times with traffic considerations"
       }
     ]
   },
   "serviceTimeModels": {
-    "default": "fixed_service",
+    "default": "ml_based",
     "options": [
       {
-        "id": "fixed_service",
-        "name": "Fixed Service Time",
+        "id": "ml_based",
+        "name": "Machine Learning Model",
         "source": "constant",
         "endpoint": null,
         "description": "Constant service duration",
@@ -101,8 +87,8 @@
         "unit": "minutes"
       },
       {
-        "id": "incident_based",
-        "name": "Incident Type Based",
+        "id": "empirical_servicetimes",
+        "name": "Empirical Distribution",
         "source": "lookup",
         "endpoint": null,
         "description": "Service time varies by incident type",
@@ -111,21 +97,6 @@
           "ems": 25,
           "rescue": 60
         }
-      },
-      {
-        "id": "severity_based",
-        "name": "Severity Based",
-        "source": "calculation",
-        "endpoint": null,
-        "description": "Service time based on incident severity",
-        "formula": "baseTime + (severity * multiplier)"
-      },
-      {
-        "id": "historical_average",
-        "name": "Historical Average",
-        "source": "api",
-        "endpoint": "/get-service-times",
-        "description": "Average service times from historical data"
       }
     ]
   },
@@ -146,20 +117,6 @@
         "endpoint": null,
         "description": "Zone-based dispatch with service areas",
         "requiresServiceZones": true
-      },
-      {
-        "id": "load_balancing",
-        "name": "Load Balancing",
-        "source": "algorithm",
-        "endpoint": null,
-        "description": "Distribute workload evenly across stations"
-      },
-      {
-        "id": "priority_based",
-        "name": "Priority Based",
-        "source": "algorithm",
-        "endpoint": null,
-        "description": "Dispatch based on incident priority and unit capability"
       }
     ]
   }
