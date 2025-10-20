@@ -54,6 +54,7 @@ interface MapSectionProps {
   selectedIncidentModel?: string;
   startDate?: Date;
   endDate?: Date;
+  onIncidentsCountChange?: (count: number) => void;
 }
 
 interface FireStation {
@@ -89,7 +90,8 @@ export function MapSection({
   setOriginalApparatusCounts,
   selectedIncidentModel,
   startDate,
-  endDate
+  endDate,
+  onIncidentsCountChange
 }: MapSectionProps) {
   const [incidents, setIncidents] = useState<ProcessedIncident[]>([]);
   const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
@@ -714,9 +716,11 @@ export function MapSection({
         const processedIncidents = processIncidents(filteredIncidents.slice(0, 500));
         console.log('Final processed incidents:', processedIncidents.length);
         setIncidents(processedIncidents);
+        if (onIncidentsCountChange) onIncidentsCountChange(processedIncidents.length);
       } catch (error) {
         console.error('Error loading incidents:', error);
         setIncidents([]);
+        if (onIncidentsCountChange) onIncidentsCountChange(0);
       }
     };
 

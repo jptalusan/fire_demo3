@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { AlertTriangle, CheckCircle, Clock, MapPin, TrendingUp } from 'lucide-react';
@@ -6,10 +6,16 @@ import { processStationReport, StationReport } from '../utils/dataProcessing';
 
 interface StatisticsTabProps {
   simulationResults?: any;
+  stations?: Array<{
+    id: string;
+    displayName?: string;
+    name?: string;
+  }>;
+  incidentsCount?: number;
 }
 
 // TODO: Hard coded minutes label performance here.
-export function StatisticsTab({ simulationResults }: StatisticsTabProps) {
+export function StatisticsTab({ simulationResults, stations = [], incidentsCount = 0 }: StatisticsTabProps) {
   // Process station report data if available
   const stationReports: StationReport[] = simulationResults?.station_report 
     ? processStationReport(simulationResults.station_report)
@@ -30,6 +36,9 @@ export function StatisticsTab({ simulationResults }: StatisticsTabProps) {
     return { status: 'Needs Improvement', color: 'text-red-600' };
   };
 
+  // Baseline pre-simulation station summary
+  const stationCount = stations.length;
+
   return (
     <div className="h-full overflow-auto space-y-4 p-4">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -40,10 +49,10 @@ export function StatisticsTab({ simulationResults }: StatisticsTabProps) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl">
-              {simulationResults?.total_incidents || '1,247'}
+              {simulationResults?.total_incidents ?? incidentsCount}
             </div>
             <p className="text-xs text-muted-foreground">
-              {simulationResults?.total_incidents ? 'From simulation' : 'Last 30 days'}
+              {simulationResults?.total_incidents ? 'From simulation' : 'From current selection'}
             </p>
           </CardContent>
         </Card>
@@ -81,22 +90,16 @@ export function StatisticsTab({ simulationResults }: StatisticsTabProps) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card>
           <CardHeader>
-            <CardTitle>Station Performance</CardTitle>
+            <CardTitle>Station Overview</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex items-center justify-between">
-              <span>Stations Meeting Targets</span>
-              <div className="flex items-center gap-2">
-                <CheckCircle className="h-4 w-4 text-green-600" />
-                <Badge variant="secondary">3</Badge>
-              </div>
+              <span>Total Stations</span>
+              <Badge variant="secondary">{stationCount}</Badge>
             </div>
             <div className="flex items-center justify-between">
-              <span>Stations Needing Improvement</span>
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4 text-yellow-600" />
-                <Badge variant="outline">1</Badge>
-              </div>
+              <span>Incidents (selected model)</span>
+              <Badge variant="outline">{incidentsCount}</Badge>
             </div>
           </CardContent>
         </Card>

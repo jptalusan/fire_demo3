@@ -36,6 +36,7 @@ export default function App() {
   const [selectedIncidentModel, setSelectedIncidentModel] = useState<string>('historical_incidents');
   const [startDate, setStartDate] = useState<Date>();
   const [endDate, setEndDate] = useState<Date>();
+  const [incidentsCount, setIncidentsCount] = useState<number>(0);
 
   console.log('App state:', { isSimulating, hasResults, selectedIncidentFile });
 
@@ -156,11 +157,6 @@ export default function App() {
         <div className="flex-1 flex">
           {/* Left Side - Map (always visible) */}
           <div className="flex-1 flex flex-col">
-            <div className="bg-muted p-1 h-10 flex items-center">
-              <div className="bg-white text-gray-800 px-4 py-1 rounded-full">
-                Map
-              </div>
-            </div>
             <Card className="h-full border-0 rounded-none flex-1">
               <CardContent className="p-0 h-full flex-1 overflow-hidden">
                 <MapSection 
@@ -180,6 +176,7 @@ export default function App() {
                   selectedIncidentModel={selectedIncidentModel}
                   startDate={startDate}
                   endDate={endDate}
+                  onIncidentsCountChange={setIncidentsCount}
                 />
               </CardContent>
             </Card>
@@ -221,7 +218,7 @@ export default function App() {
               <div className="flex-1 overflow-hidden">
                 {/* Statistics Tab */}
                 <TabsContent value="statistics" className="h-full">
-                  <StatisticsTab simulationResults={simulationResults} />
+                  <StatisticsTab simulationResults={simulationResults} stations={stations} incidentsCount={incidentsCount} />
                 </TabsContent>
 
                 {/* Simulation Results Tab */}
