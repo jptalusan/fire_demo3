@@ -15,10 +15,11 @@ interface StatisticsTabProps {
   incidentsCount?: number;
   stationApparatusCounts?: Map<string, Record<string, number>>;
   historicalIncidentStats?: any;
+  historicalIncidentError?: string | null;
 }
 
 // TODO: Hard coded minutes label performance here.
-export function StatisticsTab({ simulationResults, stations = [], incidentsCount = 0, stationApparatusCounts, historicalIncidentStats }: StatisticsTabProps) {
+export function StatisticsTab({ simulationResults, stations = [], incidentsCount = 0, stationApparatusCounts, historicalIncidentStats, historicalIncidentError }: StatisticsTabProps) {
   // Process station report data if available
   const stationReports: StationReport[] = simulationResults?.station_report 
     ? processStationReport(simulationResults.station_report)
@@ -151,8 +152,19 @@ export function StatisticsTab({ simulationResults, stations = [], incidentsCount
               </Badge>
             </div>
             
+            {/* Error Message */}
+            {historicalIncidentError && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-md">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-red-600" />
+                  <span className="text-sm font-medium text-red-800">Error</span>
+                </div>
+                <p className="text-sm text-red-700 mt-1">{historicalIncidentError}</p>
+              </div>
+            )}
+            
             {/* Historical Incident Statistics */}
-            {historicalIncidentStats && (
+            {historicalIncidentStats && !historicalIncidentError && (
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium">Avg Time Between Incidents</span>

@@ -41,6 +41,7 @@ interface ControlPanelProps {
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
   onHistoricalIncidentStatsChange?: (stats: any) => void;
+  onHistoricalIncidentErrorChange?: (error: string | null) => void;
 }
 
 export function ControlPanel({
@@ -71,6 +72,7 @@ export function ControlPanel({
   isCollapsed = false,
   onToggleCollapse,
   onHistoricalIncidentStatsChange,
+  onHistoricalIncidentErrorChange,
 }: ControlPanelProps) {
   const [fireStationsFile, setFireStationsFile] = useState<File | null>(null);
   const [incidentsFile, setIncidentsFile] = useState<File | null>(null);
@@ -246,20 +248,52 @@ export function ControlPanel({
             if (onHistoricalIncidentStatsChange) {
               onHistoricalIncidentStatsChange(result);
             }
+            // Clear any previous errors
+            if (onHistoricalIncidentErrorChange) {
+              onHistoricalIncidentErrorChange(null);
+            }
           }
         } catch (error) {
           console.error('Error processing historical incidents:', error);
+          
+          // Determine error message based on the type of error
+          let errorMessage = 'An error occurred while processing historical incidents.';
+          if (error instanceof Error) {
+            if (error.message.includes('fetch') || error.message.includes('Failed to fetch') || 
+                error.name === 'TypeError' && error.message.includes('NetworkError')) {
+              errorMessage = 'Backend server is not reachable.';
+            } else if (error.message.includes('Failed to process incidents')) {
+              errorMessage = 'Backend server failed to process the incidents data.';
+            } else if (error.message.includes('Failed to fetch CSV')) {
+              errorMessage = 'Unable to load incidents data file.';
+            }
+          } else if (typeof error === 'object' && error !== null && 'code' in error) {
+            // Handle network errors like ECONNREFUSED
+            errorMessage = 'Backend server is not reachable.';
+          }
+          
+          // Pass error to parent component
+          if (onHistoricalIncidentErrorChange) {
+            onHistoricalIncidentErrorChange(errorMessage);
+          }
+          // Clear stats on error
+          if (onHistoricalIncidentStatsChange) {
+            onHistoricalIncidentStatsChange(null);
+          }
         }
       } else {
-        // Clear stats when switching away from historical incidents
+        // Clear stats and errors when switching away from historical incidents
         if (onHistoricalIncidentStatsChange) {
           onHistoricalIncidentStatsChange(null);
+        }
+        if (onHistoricalIncidentErrorChange) {
+          onHistoricalIncidentErrorChange(null);
         }
       }
     };
 
     processHistoricalIncidents();
-  }, [selectedIncidentModel, onHistoricalIncidentStatsChange]);
+  }, [selectedIncidentModel, onHistoricalIncidentStatsChange, onHistoricalIncidentErrorChange]);
 
   const handleFileUpload = (
     file: File | null,
