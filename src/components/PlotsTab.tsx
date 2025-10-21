@@ -1,7 +1,8 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, ReferenceLine } from 'recharts';
-import { processStationReport, StationReport } from '../utils/dataProcessing';
+import { processStationReport, processStationTravelTimes, StationReport, StationTravelTimes } from '../utils/dataProcessing';
+import { BoxPlotChart } from './BoxPlotChart';
 
 interface PlotsTabProps {
   simulationResults?: any;
@@ -11,6 +12,11 @@ export function PlotsTab({ simulationResults }: PlotsTabProps) {
   // Build response time chart data from simulation station_report
   const stationReports: StationReport[] = simulationResults?.station_report
     ? processStationReport(simulationResults.station_report)
+    : [];
+
+  // Process travel times for box plot visualization
+  const stationTravelTimes: StationTravelTimes[] = simulationResults?.station_report
+    ? processStationTravelTimes(simulationResults.station_report)
     : [];
 
   // TODO: 5 is hard coded, put it in some config.
@@ -49,6 +55,35 @@ export function PlotsTab({ simulationResults }: PlotsTabProps) {
   return (
     <div className="h-full overflow-auto space-y-4 p-4">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Travel Times Box Plot */}
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle>Travel Times Distribution by Station</CardTitle>
+            <CardDescription>
+              Box plot showing travel time distribution (minutes) for each station from last simulation
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {stationTravelTimes.length > 0 ? (
+              <BoxPlotChart 
+                data={stationTravelTimes.map(station => ({
+                  stationName: station.stationName,
+                  min: station.min,
+                  q1: station.q1,
+                  median: station.median,
+                  q3: station.q3,
+                  max: station.max,
+                  mean: station.mean
+                }))}
+                height={400}
+                yAxisLabel="Travel Time (minutes)"
+              />
+            ) : (
+              <div className="text-sm text-muted-foreground">Run a simulation to see travel time distribution plots.</div>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Response Time Chart (from simulation results) */}
         <Card>
           <CardHeader>

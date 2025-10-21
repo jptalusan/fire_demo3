@@ -150,7 +150,7 @@ export function ControlPanel({
     const fetchIncidentFiles = async () => {
       try {
         const response = await fetch(
-          `http://localhost:8000/get-incidents`
+          `http://localhost:9999/get-incidents`
         ); // Use backend URL from .env
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
@@ -170,7 +170,7 @@ export function ControlPanel({
     const fetchStationFiles = async () => {
       try {
         const response = await fetch(
-          `http://localhost:8000/get-stations`
+          `http://localhost:9999/get-stations`
         ); // Fetch station files
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
@@ -191,7 +191,7 @@ export function ControlPanel({
       try {
         // For now, use the same endpoint as stations - you may need to create a separate endpoint
         const response = await fetch(
-          `http://localhost:8000/get-shapes`
+          `http://localhost:9999/get-shapes`
         ); // This might need to be changed to a service zones endpoint
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
@@ -231,7 +231,7 @@ export function ControlPanel({
             const csvData = await csvResponse.text();
             
             // Send to process-incidents endpoint
-            const response = await fetch('http://localhost:8000/process-incidents', {
+            const response = await fetch('http://localhost:9999/process-incidents', {
               method: 'POST',
               headers: {
                 'Content-Type': 'text/csv',
@@ -313,7 +313,7 @@ export function ControlPanel({
           console.log('Generating synthetic incidents for date range:', startDate, 'to', endDate);
 
           // Step 1: Generate incidents from backend
-          const generateResponse = await fetch('http://localhost:8000/generate-incidents', {
+          const generateResponse = await fetch('http://localhost:9999/generate-incidents', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -332,7 +332,7 @@ export function ControlPanel({
           console.log('Generated synthetic incidents CSV length:', csvData.length);
 
           // Step 2: Process CSV for statistics
-          const statsResponse = await fetch('http://localhost:8000/process-incidents', {
+          const statsResponse = await fetch('http://localhost:9999/process-incidents', {
             method: 'POST',
             headers: {
               'Content-Type': 'text/csv',
@@ -676,7 +676,7 @@ export function ControlPanel({
       
       console.log('Sending simulation request with payload:', payload);
       
-      const response = await fetch('http://localhost:8000/run-simulation', {
+      const response = await fetch('http://localhost:9999/run-simulation2', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

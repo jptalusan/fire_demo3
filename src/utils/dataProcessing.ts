@@ -36,6 +36,81 @@ export interface StationReport {
   incidentCount: number;
 }
 
+export interface StationTravelTimes {
+  stationName: string;
+  travelTimes: number[]; // Array of travel times in seconds
+  travelTimesMinutes: number[]; // Array of travel times in minutes
+  min: number;
+  q1: number;
+  median: number;
+  q3: number;
+  max: number;
+  mean: number;
+}
+
+/**
+ * Calculates box plot statistics (min, q1, median, q3, max) for an array of numbers
+ * @param values - Array of numeric values
+ * @returns Object with box plot statistics
+ */
+function calculateBoxPlotStats(values: number[]): {
+  min: number;
+  q1: number;
+  median: number;
+  q3: number;
+  max: number;
+  mean: number;
+} {
+  if (values.length === 0) {
+    return { min: 0, q1: 0, median: 0, q3: 0, max: 0, mean: 0 };
+  }
+
+  const sorted = [...values].sort((a, b) => a - b);
+  const n = sorted.length;
+
+  const min = sorted[0];
+  const max = sorted[n - 1];
+  const mean = values.reduce((sum, val) => sum + val, 0) / n;
+
+  const median = n % 2 === 0 
+    ? (sorted[Math.floor(n / 2) - 1] + sorted[Math.floor(n / 2)]) / 2
+    : sorted[Math.floor(n / 2)];
+
+  const q1Index = Math.floor((n - 1) * 0.25);
+  const q3Index = Math.floor((n - 1) * 0.75);
+  
+  const q1 = sorted[q1Index];
+  const q3 = sorted[q3Index];
+
+  return { min, q1, median, q3, max, mean };
+}
+
+/**
+ * Processes station travel times from simulation results for box plot visualization
+ * @param stationReportData - Object with station names as keys and travel_times arrays as values
+ * @returns Array of processed station travel time objects with box plot statistics
+ */
+export function processStationTravelTimes(stationReportData: any): StationTravelTimes[] {
+  if (!stationReportData || typeof stationReportData !== 'object') {
+    console.warn('Station report data is not an object:', stationReportData);
+    return [];
+  }
+
+  return Object.entries(stationReportData).map(([stationName, stationData]: [string, any]) => {
+    const travelTimes = stationData.travel_times || [];
+    const travelTimesMinutes = travelTimes.map((time: number) => time / 60); // Convert seconds to minutes
+    
+    const stats = calculateBoxPlotStats(travelTimesMinutes);
+    
+    return {
+      stationName,
+      travelTimes,
+      travelTimesMinutes,
+      ...stats
+    };
+  }).filter(station => station.travelTimes.length > 0);
+}
+
 /**
  * Processes station report data from simulation results
  * @param stationReportData - Array of station report objects from simulation
