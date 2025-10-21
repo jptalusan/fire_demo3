@@ -1,6 +1,7 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
-import { AlertTriangle, CheckCircle, Clock, MapPin, AlertTriangle as Triangle } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Clock, MapPin, AlertTriangle as Triangle, BarChart3, TrendingUp } from 'lucide-react';
+import { SimulationPlotsContainer } from './SimulationPlots';
 
 interface SimulationTabProps {
   hasResults: boolean;
@@ -80,20 +81,25 @@ export function SimulationTab({ hasResults, simulationResults }: SimulationTabPr
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Detailed Results</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-sm space-y-2">
-                <p>✓ Coverage analysis completed</p>
-                <p>✓ Response time optimization calculated</p>
-                <p>✓ Resource allocation analysis finished</p>
-                <p>✓ Risk assessment completed</p>
-                <p>→ Results exported to visualization layers</p>
-              </div>
-            </CardContent>
-          </Card>
+
+
+          {/* Performance Analytics Section */}
+          <div className="mt-8">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <BarChart3 className="h-5 w-5 text-blue-600" />
+                  Performance Analytics
+                </CardTitle>
+                <CardDescription>
+                  Detailed performance metrics and operational insights from simulation
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <SimulationPlotsContainer />
+              </CardContent>
+            </Card>
+          </div>
         </div>
       ) : (
         <Card className="h-full">

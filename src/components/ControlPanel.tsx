@@ -60,11 +60,11 @@ export function ControlPanel({
   selectedStationData,
   onStationDataChange,
   onStationsChange, // Add this line
-  selectedDispatchPolicy = '',
+  selectedDispatchPolicy = controlPanelConfig.dispatchPolicies.default,
   onDispatchPolicyChange,
   selectedServiceZoneFile = '',
   onServiceZoneFileChange,
-  selectedIncidentModel = '',
+  selectedIncidentModel = controlPanelConfig.incidentModels.default,
   onIncidentModelChange,
   startDate,
   endDate,
@@ -85,15 +85,15 @@ export function ControlPanel({
   const [serviceZoneFiles, setServiceZoneFiles] = useState<string[]>([]);
   const [isSimulating, setIsSimulating] = useState(false);
   
-  // Model selection states - start empty to require user selection
-  const [selectedTravelTimeModel, setSelectedTravelTimeModel] = useState('');
-  const [selectedServiceTimeModel, setSelectedServiceTimeModel] = useState('');
+  // Model selection states - start with default values
+  const [selectedTravelTimeModel, setSelectedTravelTimeModel] = useState(controlPanelConfig.travelTimeModels.default);
+  const [selectedServiceTimeModel, setSelectedServiceTimeModel] = useState(controlPanelConfig.serviceTimeModels.default);
 
   // Reset local model states when parent selections are cleared
   useEffect(() => {
     if (!selectedStationData) {
-      setSelectedTravelTimeModel('');
-      setSelectedServiceTimeModel('');
+      setSelectedTravelTimeModel(controlPanelConfig.travelTimeModels.default);
+      setSelectedServiceTimeModel(controlPanelConfig.serviceTimeModels.default);
     }
   }, [selectedStationData]);
 

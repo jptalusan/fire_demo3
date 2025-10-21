@@ -10,6 +10,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from './components/ui/tabs';
 import { Badge } from './components/ui/badge';
 import { Flame, Shield, MapIcon } from 'lucide-react';
 import { ProcessedStation, Apparatus } from './utils/dataProcessing';
+import controlPanelConfig from './config/controlPanelConfig.json';
 
 // Interface for apparatus counts (matching MapSection)
 interface ApparatusCounts {
@@ -22,17 +23,17 @@ export default function App() {
   const [hasResults, setHasResults] = useState(false);
   const [selectedIncidentFile, setSelectedIncidentFile] = useState<string>('');
   const [selectedStationFile, setSelectedStationFile] = useState<string>('');
-  const [selectedDispatchPolicy, setSelectedDispatchPolicy] = useState<string>('');
+  const [selectedDispatchPolicy, setSelectedDispatchPolicy] = useState<string>(controlPanelConfig.dispatchPolicies.default);
   const [selectedServiceZoneFile, setSelectedServiceZoneFile] = useState<string>('');
   const [activeTab, setActiveTab] = useState('statistics');
   const [stations, setStations] = useState<ProcessedStation[]>([]);
   const [stationApparatus, setStationApparatus] = useState<Map<string, Apparatus[]>>(new Map());
   const [stationApparatusCounts, setStationApparatusCounts] = useState<Map<string, ApparatusCounts>>(new Map());
   const [originalApparatusCounts, setOriginalApparatusCounts] = useState<Map<string, ApparatusCounts>>(new Map());
-  const [selectedStationData, setSelectedStationData] = useState<string>('');
+  const [selectedStationData, setSelectedStationData] = useState<string>(controlPanelConfig.stationData.default);
   const [isControlPanelCollapsed, setIsControlPanelCollapsed] = useState(false);
   // New states for incident model and date range
-  const [selectedIncidentModel, setSelectedIncidentModel] = useState<string>('');
+  const [selectedIncidentModel, setSelectedIncidentModel] = useState<string>(controlPanelConfig.incidentModels.default);
   const [startDate, setStartDate] = useState<Date | undefined>(() => {
     // Default to 30 days ago
     const date = new Date();
