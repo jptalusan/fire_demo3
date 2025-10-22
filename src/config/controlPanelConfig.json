@@ -31,17 +31,20 @@
         "id": "historical_incidents",
         "name": "Historical Incident Data",
         "source": "api",
-        "endpoint": "/process-incidents",
+        "endpoint": "/get-incidents",
         "description": "Real historical incident patterns",
-        "dataFile": "/incidents.csv"
+        "supportsDateRange": true,
+        "supportsFiltering": true
       },
       {
         "id": "synthetic_incidents",
         "name": "Synthetic Incident Model",
-        "source": "generated",
-        "endpoint": "/generate-incidents",
+        "source": "api",
+        "endpoint": "/get-incidents",
         "description": "AI-generated incident scenarios",
-        "dataFile": "/synth-incidents.csv"
+        "supportsDateRange": true,
+        "supportsFiltering": true,
+        "requiresGeneration": true
       }
     ]
   },

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { ControlPanel } from './components/ControlPanel';
 import { MapSection } from './components/MapSection';
 import { StatisticsTab } from './components/StatisticsTab';
@@ -45,6 +45,7 @@ export default function App() {
     return new Date();
   });
   const [incidentsCount, setIncidentsCount] = useState<number>(0);
+  const [incidents, setIncidents] = useState<any[]>([]);
   
   const [historicalIncidentStats, setHistoricalIncidentStats] = useState<any>(null);
   const [historicalIncidentError, setHistoricalIncidentError] = useState<string | null>(null);
@@ -57,6 +58,12 @@ export default function App() {
   const handleHistoricalIncidentErrorChange = useCallback((error: string | null) => {
     setHistoricalIncidentError(error);
   }, []);
+
+  // Clear incidents when incident model changes to force manual loading
+  useEffect(() => {
+    setIncidents([]);
+    setIncidentsCount(0);
+  }, [selectedIncidentModel]);
 
   const handleSimulationSuccess = (result: any) => {
     console.log('Simulation success, enabling tabs...', result);
@@ -89,37 +96,29 @@ export default function App() {
     setStationApparatus(prev => new Map(prev).set(stationId, apparatus));
   };
 
-  const handleClearSettings = () => {
-    setIsSimulating(false);
-    setSimulationResults(null);
-    setHasResults(false);
+    const handleClearSettings = useCallback(() => {
     setSelectedIncidentFile('');
     setSelectedStationFile('');
-    setSelectedDispatchPolicy('');
+    setSelectedDispatchPolicy(controlPanelConfig.dispatchPolicies.default);
     setSelectedServiceZoneFile('');
-    setSelectedStationData('');
-    setSelectedIncidentModel('');
-    // Reset dates to defaults (30 days ago to today)
-    const defaultStartDate = new Date();
-    defaultStartDate.setDate(defaultStartDate.getDate() - 30);
-    setStartDate(defaultStartDate);
+    setSelectedStationData(controlPanelConfig.stationData.default);
+    setSelectedIncidentModel(controlPanelConfig.incidentModels.default);
+    setStartDate(() => {
+      const date = new Date();
+      date.setDate(date.getDate() - 30);
+      return date;
+    });
     setEndDate(new Date());
-    setStations([]); // Clear stations when clearing settings
-    setStationApparatus(new Map()); // Clear apparatus data
-    setStationApparatusCounts(new Map()); // Clear apparatus counts
-    setOriginalApparatusCounts(new Map()); // Clear original apparatus counts
+    setStations([]);
+    setStationApparatus(new Map());
+    setStationApparatusCounts(new Map());
+    setOriginalApparatusCounts(new Map());
+    setSimulationResults(null);
     setIncidentsCount(0); // Reset incidents count
+    setIncidents([]); // Clear incidents
     setHistoricalIncidentStats(null); // Clear historical incident stats
-    setHistoricalIncidentError(null); // Clear historical incident errors
-    
-    // Clear map layers
-    if ((window as any).clearMapLayers) {
-      (window as any).clearMapLayers();
-    }
-    
-    // Reset active tab to statistics
-    setActiveTab('statistics');
-  };
+    setHistoricalIncidentError(null); // Clear historical incident error
+  }, []);
 
   return (
   <div className="min-h-screen flex flex-col bg-background">
@@ -189,6 +188,7 @@ export default function App() {
             onToggleCollapse={() => setIsControlPanelCollapsed(!isControlPanelCollapsed)}
             onHistoricalIncidentStatsChange={handleHistoricalIncidentStatsChange}
             onHistoricalIncidentErrorChange={handleHistoricalIncidentErrorChange}
+            onIncidentsChange={setIncidents}
           />
         </div>
 
@@ -215,6 +215,7 @@ export default function App() {
                   selectedIncidentModel={selectedIncidentModel}
                   startDate={startDate}
                   endDate={endDate}
+                  incidents={incidents}
                   onIncidentsCountChange={setIncidentsCount}
                   onClearLayers={handleClearSettings}
                 />

@@ -54,6 +54,7 @@ interface MapSectionProps {
   selectedIncidentModel?: string;
   startDate?: Date;
   endDate?: Date;
+  incidents?: any[]; // Incidents passed from parent component
   onIncidentsCountChange?: (count: number) => void;
   onClearLayers?: () => void;
 }
@@ -92,6 +93,7 @@ export function MapSection({
   selectedIncidentModel,
   startDate,
   endDate,
+  incidents: externalIncidents = [],
   onIncidentsCountChange,
   onClearLayers
 }: MapSectionProps) {
@@ -99,6 +101,15 @@ export function MapSection({
   const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
   const [isLoadingIncidents, setIsLoadingIncidents] = useState(false);
   const [isLoadingStations, setIsLoadingStations] = useState(false);
+
+  // Sync external incidents with internal state
+  useEffect(() => {
+    if (externalIncidents.length > 0) {
+      console.log('Syncing external incidents to MapSection:', externalIncidents.length);
+      setIncidents(externalIncidents);
+      if (onIncidentsCountChange) onIncidentsCountChange(externalIncidents.length);
+    }
+  }, [externalIncidents, onIncidentsCountChange]);
   
   // State to trigger reload when synthetic incidents are generated
   const [synthIncidentsTimestamp, setSynthIncidentsTimestamp] = useState<string | null>(null);
@@ -842,79 +853,18 @@ export function MapSection({
     });
   }, []);
 
+  // Clear incidents when incident model changes or is unselected
   useEffect(() => {
-    const loadIncidents = async () => {
-      // Clear incidents if no incident model selected
-      if (!selectedIncidentModel) {
-        setIncidents([]);
-        setIsLoadingIncidents(false);
-        return;
-      }
-
-      // Find the selected incident model configuration
-      const incidentModelConfig = controlPanelConfig.incidentModels.options.find(
-        model => model.id === selectedIncidentModel
-      );
-
-      // Check if we have a valid incident model configuration
-      if (!incidentModelConfig || !incidentModelConfig.dataFile) {
-        // No valid model selected - clear everything
-        setIncidents([]);
-        if (onIncidentsCountChange) onIncidentsCountChange(0);
-        setIsLoadingIncidents(false);
-        return;
-      }
-
-      try {
-        setIsLoadingIncidents(true);
-        console.log('Loading incidents from model:', selectedIncidentModel, 'dataFile:', incidentModelConfig.dataFile);
-        
-        let csvText: string;
-        
-        // Check if this is synthetic incidents - get from localStorage
-        if (incidentModelConfig.dataFile === '/synth-incidents.csv') {
-          console.log('Loading synthetic incidents from localStorage');
-          csvText = localStorage.getItem('synth-incidents.csv') || '';
-          if (!csvText) {
-            throw new Error('No synthetic incidents data found. Please generate incidents first.');
-          }
-        } else {
-          // Fetch CSV from the public folder (served by Vite dev server)
-          const response = await fetch(`/data${incidentModelConfig.dataFile}`);
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-          csvText = await response.text();
-        }
-        console.log('CSV text length:', csvText.length);
-        const parsedIncidents = parseCSV(csvText);
-        console.log('Parsed incidents before filtering:', parsedIncidents.length);
-        
-        // TEMPORARILY COMMENTED OUT: Filter incidents by date range
-        // const filteredIncidents = filterIncidentsByDateRange(parsedIncidents, startDate, endDate);
-        // console.log('Incidents after date filtering:', filteredIncidents.length);
-        
-        // For now, show all incidents without date filtering
-        const filteredIncidents = parsedIncidents;
-        console.log('Showing all incidents (date filtering disabled):', filteredIncidents.length);
-        
-        // Process and limit incidents (reduce limit to improve performance)
-        // TODO: This is where we filter the number of incidents.
-        const processedIncidents = processIncidents(filteredIncidents.slice(0, 1000));
-        console.log('Final processed incidents:', processedIncidents.length);
-        setIncidents(processedIncidents);
-        if (onIncidentsCountChange) onIncidentsCountChange(processedIncidents.length);
-      } catch (error) {
-        console.error('Error loading incidents:', error);
-        setIncidents([]);
-        if (onIncidentsCountChange) onIncidentsCountChange(0);
-      } finally {
-        setIsLoadingIncidents(false);
-      }
-    };
-
-    loadIncidents();
-  }, [selectedIncidentModel, startDate, endDate, synthIncidentsTimestamp]); // Added synthIncidentsTimestamp to trigger reload when synthetic incidents are generated
+    if (!selectedIncidentModel) {
+      setIncidents([]);
+      if (onIncidentsCountChange) onIncidentsCountChange(0);
+      setIsLoadingIncidents(false);
+    } else {
+      // Clear incidents when changing to a different model to force manual loading
+      setIncidents([]);
+      if (onIncidentsCountChange) onIncidentsCountChange(0);
+    }
+  }, [selectedIncidentModel, onIncidentsCountChange]);
 
   useEffect(() => {
     const loadStations = async () => {

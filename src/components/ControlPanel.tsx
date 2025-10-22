@@ -84,6 +84,8 @@ export function ControlPanel({
   const [stationFiles, setStationFiles] = useState<string[]>([]);
   const [serviceZoneFiles, setServiceZoneFiles] = useState<string[]>([]);
   const [isSimulating, setIsSimulating] = useState(false);
+  const [isLoadingIncidents, setIsLoadingIncidents] = useState(false);
+  const [incidentLoadError, setIncidentLoadError] = useState<string | null>(null);
   
   // Model selection states - start with default values
   const [selectedTravelTimeModel, setSelectedTravelTimeModel] = useState(controlPanelConfig.travelTimeModels.default);
@@ -96,6 +98,11 @@ export function ControlPanel({
       setSelectedServiceTimeModel(controlPanelConfig.serviceTimeModels.default);
     }
   }, [selectedStationData]);
+
+  // Clear incident load error when parameters change
+  useEffect(() => {
+    setIncidentLoadError(null);
+  }, [selectedIncidentModel, startDate, endDate]);
 
   useEffect(() => {
     if (!selectedDispatchPolicy) {
@@ -211,91 +218,8 @@ export function ControlPanel({
   }, [selectedDispatchPolicy]);
 
   // Process historical incidents when model changes to historical_incidents
-  useEffect(() => {
-    const processHistoricalIncidents = async () => {
-      if (selectedIncidentModel === 'historical_incidents') {
-        try {
-          // Get the incident model configuration
-          const incidentModelConfig = controlPanelConfig.incidentModels.options.find(
-            model => model.id === 'historical_incidents'
-          );
-          
-          if (incidentModelConfig?.dataFile) {
-            console.log('Processing historical incidents from:', incidentModelConfig.dataFile);
-            
-            // Fetch the CSV file from public folder (served by Vite dev server)
-            const csvResponse = await fetch(`/data${incidentModelConfig.dataFile}`);
-            if (!csvResponse.ok) {
-              throw new Error(`Failed to fetch CSV: ${csvResponse.status}`);
-            }
-            const csvData = await csvResponse.text();
-            
-            // Send to process-incidents endpoint
-            const response = await fetch('http://localhost:9999/process-incidents', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'text/csv',
-              },
-              body: csvData
-            });
-            
-            if (!response.ok) {
-              throw new Error(`Failed to process incidents: ${response.status}`);
-            }
-            
-            const result = await response.json();
-            console.log('Historical incident processing result:', result);
-            
-            // Pass results to parent component
-            if (onHistoricalIncidentStatsChange) {
-              onHistoricalIncidentStatsChange(result);
-            }
-            // Clear any previous errors
-            if (onHistoricalIncidentErrorChange) {
-              onHistoricalIncidentErrorChange(null);
-            }
-          }
-        } catch (error) {
-          console.error('Error processing historical incidents:', error);
-          
-          // Determine error message based on the type of error
-          let errorMessage = 'An error occurred while processing historical incidents.';
-          if (error instanceof Error) {
-            if (error.message.includes('fetch') || error.message.includes('Failed to fetch') || 
-                error.name === 'TypeError' && error.message.includes('NetworkError')) {
-              errorMessage = 'Backend server is not reachable.';
-            } else if (error.message.includes('Failed to process incidents')) {
-              errorMessage = 'Backend server failed to process the incidents data.';
-            } else if (error.message.includes('Failed to fetch CSV')) {
-              errorMessage = 'Unable to load incidents data file.';
-            }
-          } else if (typeof error === 'object' && error !== null && 'code' in error) {
-            // Handle network errors like ECONNREFUSED
-            errorMessage = 'Backend server is not reachable.';
-          }
-          
-          // Pass error to parent component
-          if (onHistoricalIncidentErrorChange) {
-            onHistoricalIncidentErrorChange(errorMessage);
-          }
-          // Clear stats on error
-          if (onHistoricalIncidentStatsChange) {
-            onHistoricalIncidentStatsChange(null);
-          }
-        }
-      } else {
-        // Clear stats and errors when switching away from historical incidents
-        if (onHistoricalIncidentStatsChange) {
-          onHistoricalIncidentStatsChange(null);
-        }
-        if (onHistoricalIncidentErrorChange) {
-          onHistoricalIncidentErrorChange(null);
-        }
-      }
-    };
-
-    processHistoricalIncidents();
-  }, [selectedIncidentModel, onHistoricalIncidentStatsChange, onHistoricalIncidentErrorChange]);
+  // Note: Historical incident processing is now handled by the manual "Load Incidents" button
+  // and automatic loading in MapSection component. The old CSV-based processing is removed.
 
   // Process synthetic incidents when model changes to synthetic_incidents
   useEffect(() => {
@@ -312,53 +236,48 @@ export function ControlPanel({
 
           console.log('Generating synthetic incidents for date range:', startDate, 'to', endDate);
 
-          // Step 1: Generate incidents from backend
-          const generateResponse = await fetch('http://localhost:9999/generate-incidents', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
+          // Import the incident API service
+          const { incidentAPI } = await import('../services/incidentAPI');
+
+          // Step 1: Generate incidents using the API service
+          const generateResponse = await incidentAPI.generateIncidents(
+            selectedStationData || 'default_stations',
+            {
+              start: startDate.toISOString(),
+              end: endDate.toISOString()
             },
-            body: JSON.stringify({
-              start_date: startDate.toISOString().split('T')[0], // YYYY-MM-DD format
-              end_date: endDate.toISOString().split('T')[0]
-            }),
-          });
+            {} // Additional parameters can be added here
+          );
 
-          if (!generateResponse.ok) {
-            throw new Error(`Backend failed to generate incidents: ${generateResponse.statusText}`);
+          if (generateResponse.status !== 'success') {
+            throw new Error(`Backend failed to generate incidents: ${generateResponse.message}`);
           }
 
-          const csvData = await generateResponse.text();
-          console.log('Generated synthetic incidents CSV length:', csvData.length);
+          console.log('Synthetic incidents generated successfully:', generateResponse.data);
 
-          // Step 2: Process CSV for statistics
-          const statsResponse = await fetch('http://localhost:9999/process-incidents', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'text/csv',
-            },
-            body: csvData,
-          });
+          // Step 2: Get incident statistics from the API
+          const statsResponse = await incidentAPI.getIncidentStatistics(
+            'synthetic_incidents',
+            {
+              start: startDate.toISOString(),
+              end: endDate.toISOString()
+            }
+          );
 
-          if (!statsResponse.ok) {
-            throw new Error(`Backend failed to process incidents: ${statsResponse.statusText}`);
+          if (statsResponse.status === 'success' && statsResponse.data) {
+            console.log('Synthetic incident statistics:', statsResponse.data);
+            
+            // Update statistics
+            if (onHistoricalIncidentStatsChange) {
+              onHistoricalIncidentStatsChange(statsResponse.data);
+            }
           }
 
-          const stats = await statsResponse.json();
-          console.log('Synthetic incident processing result:', stats);
-          
-          // Update statistics
-          if (onHistoricalIncidentStatsChange) {
-            onHistoricalIncidentStatsChange(stats);
-          }
-
-          // Step 3: Save CSV to localStorage for map to read
-          localStorage.setItem('synth-incidents.csv', csvData);
+          // Set timestamp to trigger map reload
           localStorage.setItem('synth-incidents-timestamp', Date.now().toString());
-          console.log('Saved synthetic incidents CSV to localStorage:', csvData.length, 'characters');
+          console.log('Synthetic incidents ready for use');
           
-          // Clear any passed incidents since we're now using localStorage approach
-          // (No longer needed - using localStorage instead of props)
+          // No longer need localStorage CSV storage since we're using API
 
           // Clear any previous errors
           if (onHistoricalIncidentErrorChange) {
@@ -776,46 +695,6 @@ export function ControlPanel({
               </div>
             </div>
 
-            {/* Date Range Selector */}
-            <div>
-              <Label>Date Range</Label>
-              <div className="mt-2 space-y-2">
-                {/* Start Date */}
-                <div>
-                  <Label className="text-sm text-gray-600">From</Label>
-                  <input
-                    type="date"
-                    value={startDate ? startDate.toISOString().split('T')[0] : ''}
-                    onChange={(e) => {
-                      const date = e.target.value ? new Date(e.target.value) : undefined;
-                      onStartDateChange?.(date);
-                    }}
-                    max={endDate ? endDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0]}
-                    className="w-full p-2 border rounded"
-                  />
-                </div>
-
-                {/* End Date */}
-                <div>
-                  <Label className="text-sm text-gray-600">To</Label>
-                  <input
-                    type="date"
-                    value={endDate ? endDate.toISOString().split('T')[0] : ''}
-                    onChange={(e) => {
-                      const date = e.target.value ? new Date(e.target.value) : undefined;
-                      onEndDateChange?.(date);
-                    }}
-                    min={startDate ? startDate.toISOString().split('T')[0] : undefined}
-                    max={new Date().toISOString().split('T')[0]}
-                    className="w-full p-2 border rounded"
-                  />
-                </div>
-
-                <p className="text-xs text-gray-500">
-                  Select range for incidents
-                </p>
-              </div>
-            </div>
           </div>
 
           <Separator />
@@ -849,6 +728,113 @@ export function ControlPanel({
                 </p>
               </div>
             </div>
+
+            {/* Date Range Selector - Only show when incident model is selected */}
+            {selectedIncidentModel && (
+              <div>
+                <Label>Date Range</Label>
+                <div className="mt-2 space-y-2">
+                  {/* Start Date */}
+                  <div>
+                    <Label className="text-sm text-gray-600">From</Label>
+                    <input
+                      type="date"
+                      value={startDate ? startDate.toISOString().split('T')[0] : ''}
+                      onChange={(e) => {
+                        const date = e.target.value ? new Date(e.target.value) : undefined;
+                        onStartDateChange?.(date);
+                      }}
+                      max={endDate ? endDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0]}
+                      className="w-full p-2 border rounded"
+                    />
+                  </div>
+
+                  {/* End Date */}
+                  <div>
+                    <Label className="text-sm text-gray-600">To</Label>
+                    <input
+                      type="date"
+                      value={endDate ? endDate.toISOString().split('T')[0] : ''}
+                      onChange={(e) => {
+                        const date = e.target.value ? new Date(e.target.value) : undefined;
+                        onEndDateChange?.(date);
+                      }}
+                      min={startDate ? startDate.toISOString().split('T')[0] : undefined}
+                      max={new Date().toISOString().split('T')[0]}
+                      className="w-full p-2 border rounded"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-gray-500">
+                      Select range for incidents
+                    </p>
+                    {startDate && endDate && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={isLoadingIncidents}
+                        onClick={async () => {
+                          try {
+                            setIsLoadingIncidents(true);
+                            setIncidentLoadError(null);
+                            console.log('Manual incident load triggered for:', selectedIncidentModel, startDate, endDate);
+                            
+                            // Import the API instance
+                            const { incidentAPI } = await import('../services/incidentAPI');
+                            
+                            // Call the API with current parameters
+                            const response = await incidentAPI.getIncidents(
+                              selectedIncidentModel!,
+                              {
+                                dateRange: {
+                                  start: startDate.toISOString().split('T')[0],
+                                  end: endDate.toISOString().split('T')[0]
+                                }
+                              }
+                            );
+                            
+                            // Update the incidents via the callback if successful
+                            if (response.status === 'success' && response.data) {
+                              onIncidentsChange?.(response.data);
+                              console.log(`Loaded ${response.data.length} incidents manually`);
+                              setIncidentLoadError(null);
+                            } else {
+                              const errorMsg = response.message || 'Failed to load incidents';
+                              setIncidentLoadError(errorMsg);
+                              console.error('API call failed:', errorMsg);
+                            }
+                          } catch (error) {
+                            const errorMsg = error instanceof Error ? error.message : 'Unknown error occurred';
+                            setIncidentLoadError(errorMsg);
+                            console.error('Failed to load incidents manually:', error);
+                          } finally {
+                            setIsLoadingIncidents(false);
+                          }
+                        }}
+                        className={`ml-2 px-3 py-1 text-xs ${incidentLoadError ? 'border-red-500 text-red-600' : ''}`}
+                      >
+                        {isLoadingIncidents ? (
+                          <>
+                            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-current mr-1"></div>
+                            Loading...
+                          </>
+                        ) : (
+                          'Load Incidents'
+                        )}
+                      </Button>
+                    )}
+                  </div>
+                  
+                  {/* Error message display */}
+                  {incidentLoadError && (
+                    <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-600">
+                      <strong>Error:</strong> {incidentLoadError}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Travel Time Model */}
             <div>
