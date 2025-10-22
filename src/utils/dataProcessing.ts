@@ -87,17 +87,20 @@ function calculateBoxPlotStats(values: number[]): {
 
 /**
  * Processes station travel times from simulation results for box plot visualization
- * @param stationReportData - Object with station names as keys and travel_times arrays as values
+ * @param stationReportData - Array of station report objects from simulation
  * @returns Array of processed station travel time objects with box plot statistics
  */
-export function processStationTravelTimes(stationReportData: any): StationTravelTimes[] {
-  if (!stationReportData || typeof stationReportData !== 'object') {
-    console.warn('Station report data is not an object:', stationReportData);
+export function processStationTravelTimes(stationReportData: any[]): StationTravelTimes[] {
+  if (!Array.isArray(stationReportData)) {
+    console.warn('Station report data is not an array:', stationReportData);
     return [];
   }
 
-  return Object.entries(stationReportData).map(([stationName, stationData]: [string, any]) => {
-    const travelTimes = stationData.travel_times || [];
+  return stationReportData.map(reportItem => {
+    // Each item is an object with a single key (station ID) and value (metrics)
+    const stationName = Object.keys(reportItem)[0];
+    const stationData = reportItem[stationName];
+    const travelTimes = stationData['travel times'] || [];
     const travelTimesMinutes = travelTimes.map((time: number) => time / 60); // Convert seconds to minutes
     
     const stats = calculateBoxPlotStats(travelTimesMinutes);

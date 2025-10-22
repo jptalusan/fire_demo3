@@ -1,7 +1,8 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, ReferenceLine } from 'recharts';
-import { processStationReport, StationReport } from '../utils/dataProcessing';
+import { processStationReport, processStationTravelTimes, StationReport, StationTravelTimes } from '../utils/dataProcessing';
+import { BoxPlotChart } from './BoxPlotChart';
 import { MockPlotsContainer, IncidentTypesPieChart, MockBoxPlot } from './MockPlots';
 
 interface PlotsTabProps {
@@ -9,22 +10,40 @@ interface PlotsTabProps {
 }
 
 export function PlotsTab({ simulationResults }: PlotsTabProps) {
-  // Build response time chart data from simulation station_report
-  const stationReports: StationReport[] = simulationResults?.station_report
-    ? processStationReport(simulationResults.station_report)
-    : [];
+  console.log('PlotsTab simulationResults:', simulationResults);
 
-  // Process travel times for box plot visualization
-  const stationTravelTimes: StationTravelTimes[] = simulationResults?.station_report
-    ? processStationTravelTimes(simulationResults.station_report)
-    : [];
+  // Build response time chart data from simulation station_report
+  let stationReports: StationReport[] = [];
+  let stationTravelTimes: StationTravelTimes[] = [];
+  
+  try {
+    stationReports = simulationResults?.station_report
+      ? processStationReport(simulationResults.station_report)
+      : [];
+    
+    stationTravelTimes = simulationResults?.station_report
+      ? processStationTravelTimes(simulationResults.station_report)
+      : [];
+  } catch (error) {
+    console.error('Error processing station data:', error);
+    stationReports = [];
+    stationTravelTimes = [];
+  }
+
+  console.log('Processed station reports:', stationReports);
+  console.log('Processed station travel times:', stationTravelTimes);
 
   // TODO: 5 is hard coded, put it in some config.
   const targetMinutes: number = simulationResults?.target_response_minutes ?? 5;
 
   const responseTimeData = stationReports
     .slice()
-    .sort((a, b) => parseFloat(a.stationName) - parseFloat(b.stationName))
+    .sort((a, b) => {
+      // Extract station numbers for sorting
+      const aNum = parseFloat(a.stationName.replace(/\D/g, '')) || 0;
+      const bNum = parseFloat(b.stationName.replace(/\D/g, '')) || 0;
+      return aNum - bNum;
+    })
     .map((r) => {
       // Extract just the number from "Station XX" format
       const match = r.stationName.match(/\d+/);
@@ -74,17 +93,95 @@ export function PlotsTab({ simulationResults }: PlotsTabProps) {
 
   return (
     <div className="h-full overflow-auto space-y-4 p-4">
-      {/* <div className="grid grid-cols-1 lg:grid-cols-2 gap-4"> */}
-      <div className="col-span-1 lg:col-span-2 w-full">
-        {/* Average Travel Times Box Plot - moved to first position */}
-        <MockBoxPlot 
-          title="Average Travel Times per Station"
-          data={mockStationTravelTimes}
-        />
-        
-        {/* Incident Types Pie Chart - moved to second position */}
-        {/* <IncidentTypesPieChart /> */}
+      {/* Travel Times Box Plot - Full Width */}
+      <Card className="mb-4">
+        <CardHeader>
+          <CardTitle>Travel Times Distribution by Station</CardTitle>
+          <CardDescription>
+            Box plot showing travel time distribution (minutes) for each station from simulation
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {stationTravelTimes.length > 0 ? (
+            <BoxPlotChart 
+              data={stationTravelTimes.map(station => ({
+                stationName: station.stationName,
+                min: station.min,
+                q1: station.q1,
+                median: station.median,
+                q3: station.q3,
+                max: station.max,
+                mean: station.mean
+              }))}
+              height={400}
+              yAxisLabel="Travel Time (minutes)"
+            />
+          ) : (
+            <div className="text-sm text-muted-foreground p-4 text-center">
+              Run a simulation to see travel time distribution plots.
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Response Time Chart (from actual simulation results) */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Average Response Times by Station</CardTitle>
+            <CardDescription>
+              Response time (minutes) per station from simulation
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {responseTimeData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={responseTimeData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="station" interval={0} angle={0} textAnchor="middle" height={60} tickMargin={8} />
+                  <YAxis label={{ value: 'Minutes', angle: -90, position: 'insideLeft' }} />
+                  <Tooltip formatter={(value: any, name: any) => [value, name === 'avgTime' ? 'Avg Time (min)' : name === 'target' ? 'Target (min)' : name]} />
+                  <Bar dataKey="avgTime" fill="#8884d8" name="Avg Time (min)" />
+                  <ReferenceLine y={targetMinutes} stroke="#82ca9d" strokeDasharray="4 4" label={`Target ${targetMinutes}m`} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="text-sm text-muted-foreground p-4 text-center">
+                Run a simulation to see response time data.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Incidents per Station */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Incidents Handled by Station</CardTitle>
+            <CardDescription>
+              Number of incidents handled by each station
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {responseTimeData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={responseTimeData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="station" interval={0} angle={0} textAnchor="middle" height={60} tickMargin={8} />
+                  <YAxis label={{ value: 'Incidents', angle: -90, position: 'insideLeft' }} />
+                  <Tooltip formatter={(value: any, name: any) => [value, name === 'incidents' ? 'Incidents' : name]} />
+                  <Bar dataKey="incidents" fill="#4ECDC4" name="Incidents" />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="text-sm text-muted-foreground p-4 text-center">
+                Run a simulation to see incident distribution.
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
+
+
 
       {/* Enhanced Mock Analytics */}
       <div className="mt-8">

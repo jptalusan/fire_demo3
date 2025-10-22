@@ -31,7 +31,7 @@ export function SimulationTab({ hasResults, simulationResults }: SimulationTabPr
                 <Clock className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-xl">{simulationResults?.average_response_time ?? '-'} min</div>
+                <div className="text-xl">{simulationResults?.average_response_time ?? '-'} sec</div>
                 <p className="text-[11px] text-green-600">Within target range</p>
               </CardContent>
             </Card>
