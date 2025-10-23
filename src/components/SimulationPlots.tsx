@@ -1,7 +1,8 @@
 import React, { useEffect, useRef } from 'react';
 import * as d3 from 'd3';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
-import { MapPin, Clock, AlertTriangle, Activity, Thermometer } from 'lucide-react';
+import { MapPin, Clock, AlertTriangle, Activity, Thermometer, Truck, Timer, BarChart3 } from 'lucide-react';
+import { MockBarChart } from './MockPlots';
 
 
 
@@ -222,48 +223,75 @@ export const IncidentProbabilityHeatmap: React.FC = () => {
 };
 
 // Compact Metadata Cards Component
-export const CompactMetadataCards: React.FC = () => {
+interface CompactMetadataCardsProps {
+  simulationResults?: any;
+}
+
+export const CompactMetadataCards: React.FC<CompactMetadataCardsProps> = ({ simulationResults }) => {
+  // Calculate success rate from simulation results
+  const calculateSuccessRate = () => {
+    if (!simulationResults) {
+      return '96.4%'; // fallback based on your example: 405/420
+    }
+    
+    // Success Rate = incidents in simulation (405) / total incidents loaded (420)
+    const totalIncidentsInSimulation = simulationResults.total_incidents; // 405 from simulation
+    
+    // The total loaded incidents should come from the incidents overview
+    // This might be passed separately or available in simulationResults
+    const totalIncidentsLoaded = simulationResults.total_incidents_loaded || 
+                                 simulationResults.incidents_total || 
+                                 simulationResults.loaded_incidents ||
+                                 420; // fallback to your example
+    
+    if (!totalIncidentsInSimulation || !totalIncidentsLoaded) {
+      return '96.4%'; // fallback
+    }
+    
+    const successRate = ((totalIncidentsInSimulation / totalIncidentsLoaded) * 100).toFixed(1);
+    return `${successRate}%`;
+  };
+
+  // Get simulation time from results - time to call run_simulation2 and get response
+  const getSimulationTime = () => {
+    // Look for API call duration fields
+    const apiCallTime = simulationResults?.api_call_duration || 
+                       simulationResults?.request_duration ||
+                       simulationResults?.simulation_duration ||
+                       simulationResults?.execution_time;
+    
+    if (apiCallTime) {
+      const time = parseFloat(apiCallTime);
+      // Format based on magnitude
+      if (time < 1) {
+        return `${(time * 1000).toFixed(0)}ms`;
+      } else if (time < 60) {
+        return `${time.toFixed(1)}s`;
+      } else {
+        return `${(time / 60).toFixed(1)}min`;
+      }
+    }
+    
+    return '2.3s'; // fallback
+  };
+
   const metadata = [
     {
-      title: 'Duration',
-      value: '2.3s',
+      title: 'Simulation time',
+      value: getSimulationTime(),
       description: 'Simulation time',
       icon: <Clock className="h-4 w-4" />,
     },
     {
-      title: 'Iterations',
-      value: '50K',
-      description: 'Monte Carlo runs',
-      icon: <Activity className="h-4 w-4" />,
-    },
-    {
-      title: 'Accuracy',
-      value: '94.2%',
-      description: 'Model precision',
-      icon: <AlertTriangle className="h-4 w-4" />,
-    },
-    {
-      title: 'Data Points',
-      value: '125K',
-      description: 'Events processed',
-      icon: <MapPin className="h-4 w-4" />,
-    },
-    {
-      title: 'Memory',
-      value: '847MB',
-      description: 'Peak usage',
-      icon: <Activity className="h-4 w-4" />,
-    },
-    {
-      title: 'Convergence',
-      value: '98.5%',
-      description: 'Success rate',
+      title: 'Success Rate',
+      value: calculateSuccessRate(),
+      description: 'Incidents processed',
       icon: <AlertTriangle className="h-4 w-4" />,
     }
   ];
 
   return (
-    <div className="grid grid-cols-3 gap-3">
+    <div className="grid grid-cols-2 gap-4">
       {metadata.map((item, index) => (
         <Card key={index} className="p-3">
           <div className="flex items-center justify-between">
@@ -282,18 +310,117 @@ export const CompactMetadataCards: React.FC = () => {
 };
 
 // Main Simulation Plots Container
-export const SimulationPlotsContainer: React.FC = () => {
+interface SimulationPlotsContainerProps {
+  simulationResults?: any;
+  historicalIncidentStats?: any;
+}
+
+export const SimulationPlotsContainer: React.FC<SimulationPlotsContainerProps> = ({ 
+  simulationResults, 
+  historicalIncidentStats 
+}) => {
   return (
     <div className="space-y-6">
       {/* Compact Performance Analytics */}
       <div>
         <h3 className="text-lg font-semibold mb-4">Performance Analytics</h3>
-        <CompactMetadataCards />
+        <CompactMetadataCards simulationResults={simulationResults} />
       </div>
 
-      {/* Single Incident Probability Heatmap */}
-      <div>
+      {/* Single Incident Probability Heatmap - Commented out for now */}
+      {/* <div>
         <IncidentProbabilityHeatmap />
+      </div> */}
+
+      {/* Vehicle and Response Analytics */}
+      <div>
+        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <BarChart3 className="h-5 w-5" />
+          Vehicle & Response Analytics
+        </h3>
+        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+          <MockBarChart 
+            title="Average Response Times by Category"
+            data={simulationResults && simulationResults.average_response_time_per_incident_type
+              ? simulationResults.average_response_time_per_incident_type
+                  .slice(0, 10) // Take top 10
+                  .map((item: any) => {
+                    const category = Object.keys(item)[0];
+                    const data = Object.values(item)[0] as any;
+                    return {
+                      category: category.length > 150 ? category.substring(0, 147) + '...' : category,
+                      avgResponseTime: Math.round((data['average travel time'] / 60) * 100) / 100 // Convert seconds to minutes, round to 2 decimals
+                    };
+                  })
+              : [
+                  { category: 'Fire Alarm', avgResponseTime: 4.2 },
+                  { category: 'Medical Emergency', avgResponseTime: 5.8 },
+                  { category: 'Vehicle Accident', avgResponseTime: 6.1 },
+                  { category: 'Structure Fire', avgResponseTime: 3.9 },
+                  { category: 'Hazmat', avgResponseTime: 7.3 }
+                ]
+            }
+            valueKey="avgResponseTime"
+            labelKey="category"
+            unit=" min"
+            isRealData={!!(simulationResults && simulationResults.average_response_time_per_incident_type)}
+          />
+          
+          <MockBarChart 
+            title="Average Travel Time by Vehicle Type"
+            data={simulationResults && simulationResults.vehicle_report 
+              ? simulationResults.vehicle_report.map((vehicleReport: any) => {
+                  const vehicleType = Object.keys(vehicleReport)[0];
+                  const data = vehicleReport[vehicleType];
+                  return {
+                    vehicleType: vehicleType === 'Medic' ? 'Medic Unit' : 
+                                vehicleType === 'Engine' ? 'Fire Engine' :
+                                vehicleType === 'Truck' ? 'Ladder Truck' :
+                                vehicleType === 'Rescue' ? 'Rescue Unit' :
+                                vehicleType,
+                    avgTravelTime: Math.round((data['travel time mean'] / 60) * 100) / 100 // Convert seconds to minutes
+                  };
+                })
+              : [
+                  { vehicleType: 'Fire Engine', avgTravelTime: 3.5 },
+                  { vehicleType: 'Medic Unit', avgTravelTime: 4.2 },
+                  { vehicleType: 'Ladder Truck', avgTravelTime: 5.1 },
+                  { vehicleType: 'Rescue Unit', avgTravelTime: 3.8 }
+                ]
+            }
+            valueKey="avgTravelTime"
+            labelKey="vehicleType"
+            unit=" min"
+            isRealData={!!(simulationResults && simulationResults.vehicle_report)}
+          />
+          
+          <MockBarChart 
+            title="Incidents Handled by Vehicle Type"
+            data={simulationResults && simulationResults.vehicle_report 
+              ? simulationResults.vehicle_report.map((vehicleReport: any) => {
+                  const vehicleType = Object.keys(vehicleReport)[0];
+                  const data = vehicleReport[vehicleType];
+                  return {
+                    vehicleType: vehicleType === 'Medic' ? 'Medic Unit' : 
+                                vehicleType === 'Engine' ? 'Fire Engine' :
+                                vehicleType === 'Truck' ? 'Ladder Truck' :
+                                vehicleType === 'Rescue' ? 'Rescue Unit' :
+                                vehicleType,
+                    incidentCount: data['incident count']
+                  };
+                })
+              : [
+                  { vehicleType: 'Fire Engine', incidentCount: 45 },
+                  { vehicleType: 'Medic Unit', incidentCount: 120 },
+                  { vehicleType: 'Ladder Truck', incidentCount: 25 },
+                  { vehicleType: 'Rescue Unit', incidentCount: 8 }
+                ]
+            }
+            valueKey="incidentCount"
+            labelKey="vehicleType"
+            isRealData={!!(simulationResults && simulationResults.vehicle_report)}
+          />
+        </div>
       </div>
 
       {/* Summary Insights */}

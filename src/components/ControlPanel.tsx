@@ -595,6 +595,9 @@ export function ControlPanel({
       
       console.log('Sending simulation request with payload:', payload);
       
+      // Start timing the API call
+      const startTime = performance.now();
+      
       const response = await fetch('http://localhost:9999/run-simulation2', {
         method: 'POST',
         headers: {
@@ -607,7 +610,16 @@ export function ControlPanel({
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const result = await response.json();
+      
+      // Calculate API call duration
+      const endTime = performance.now();
+      const apiCallDuration = (endTime - startTime) / 1000; // Convert to seconds
+      
+      // Add timing to the result
+      result.api_call_duration = apiCallDuration;
+      
       console.log('Simulation result:', result);
+      console.log(`API call took ${apiCallDuration.toFixed(2)} seconds`);
 
       // Check if the status is success
       if (result.status === 'success') {

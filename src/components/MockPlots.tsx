@@ -4,7 +4,7 @@ import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
 import { ChevronDown, ChevronRight, BarChart3, TrendingUp, Clock, MapPin } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar } from 'recharts';
 import * as d3 from 'd3';
 
 // Mock data generators
@@ -526,7 +526,7 @@ export const MockPlotsContainer: React.FC<MockPlotsContainerProps> = ({
   return (
     <div className="space-y-6">
       {/* Main Analytics Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 gap-6">
         {/* <MockBoxPlot 
           title="Average Travel Times per Station"
           data={mockData.stationTravelTimes}
@@ -535,23 +535,7 @@ export const MockPlotsContainer: React.FC<MockPlotsContainerProps> = ({
         {/* Incident Types Pie Chart - moved to second position */}
         <IncidentTypesPieChart historicalIncidentStats={historicalIncidentStats} incidents={incidents} />
         
-        <MockBarChart 
-          title="Average Response Times by Category"
-          data={mockData.categoryResponseTimes}
-          valueKey="avgResponseTime"
-          labelKey="category"
-          unit=" min"
-          isRealData={false}
-        />
-        
-        <MockBarChart 
-          title="Average Distance Covered by Vehicle Type"
-          data={mockData.vehicleDistances}
-          valueKey="avgDistance"
-          labelKey="vehicleType"
-          unit=" km"
-          isRealData={false}
-        />
+
       </div>
 
       {/* Station-Specific Analysis */}
@@ -559,46 +543,210 @@ export const MockPlotsContainer: React.FC<MockPlotsContainerProps> = ({
         <h3 className="text-lg font-semibold flex items-center gap-2">
           <Clock className="h-5 w-5" />
           Detailed Station Analysis
+          {simulationResults && simulationResults.station_report && (
+            <Badge variant="default" className="ml-2">Real Data Available</Badge>
+          )}
         </h3>
         
-        {mockData.stationTimeSeriesData.map((stationData) => (
-          <Card key={stationData.station}>
-            <Collapsible 
-              open={openStations[stationData.station]} 
-              onOpenChange={() => toggleStation(stationData.station)}
-            >
-              <CollapsibleTrigger asChild>
-                <CardHeader className="cursor-pointer hover:bg-gray-50 transition-colors">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-base flex items-center gap-2">
-                      <MapPin className="h-4 w-4" />
-                      {stationData.station} - Travel Times per Incident
-                    </CardTitle>
-                    <Button variant="ghost" size="sm">
-                      {openStations[stationData.station] ? (
-                        <ChevronDown className="h-4 w-4" />
-                      ) : (
-                        <ChevronRight className="h-4 w-4" />
-                      )}
-                    </Button>
-                  </div>
-                  <div className="text-sm text-gray-600">
-                    {stationData.incidents.length} incidents analyzed
-                  </div>
-                </CardHeader>
-              </CollapsibleTrigger>
-              
-              <CollapsibleContent>
-                <CardContent>
-                  <StationLineChart stationData={stationData} />
-                  <div className="mt-4 text-xs text-gray-500">
-                    Line chart showing travel time trends throughout the day. Hover over points for details.
-                  </div>
-                </CardContent>
-              </CollapsibleContent>
-            </Collapsible>
-          </Card>
-        ))}
+        {simulationResults && simulationResults.station_report ? 
+          simulationResults.station_report.map((stationItem: any, index: number) => {
+            const stationName = Object.keys(stationItem)[0];
+            const stationData = Object.values(stationItem)[0] as any;
+            const stationNum = stationName.replace('Station ', '');
+            
+            return (
+              <Card key={stationName}>
+                <Collapsible 
+                  open={openStations[stationName]} 
+                  onOpenChange={() => toggleStation(stationName)}
+                >
+                  <CollapsibleTrigger asChild>
+                    <CardHeader className="cursor-pointer hover:bg-gray-50 transition-colors">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-base flex items-center gap-2">
+                          <MapPin className="h-4 w-4" />
+                          Station {stationNum} - Response & Service Time Distribution
+                        </CardTitle>
+                        <Button variant="ghost" size="sm">
+                          {openStations[stationName] ? (
+                            <ChevronDown className="h-4 w-4" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
+                      <div className="text-sm text-gray-600">
+                        {stationData['incident count']} incidents | Avg Response: {(stationData['travel time mean'] / 60).toFixed(1)} min | Avg Service: {(stationData['average service time'] / 60).toFixed(1)} min
+                      </div>
+                    </CardHeader>
+                  </CollapsibleTrigger>
+                  
+                  <CollapsibleContent>
+                    <CardContent>
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        {/* Response Time Histogram */}
+                        <div>
+                          <h4 className="text-sm font-medium mb-3">Response Time Distribution</h4>
+                          <ResponsiveContainer width="100%" height={200}>
+                            <BarChart data={
+                              (() => {
+                                const times = stationData['travel times'].map((time: number) => time / 60); // Convert to minutes
+                                const bins = Array.from({ length: 8 }, (_, i) => ({
+                                  range: `${i * 2}-${(i + 1) * 2}`,
+                                  count: 0,
+                                  min: i * 2,
+                                  max: (i + 1) * 2
+                                }));
+                                
+                                times.forEach((time: number) => {
+                                  const binIndex = Math.min(Math.floor(time / 2), 7);
+                                  bins[binIndex].count++;
+                                });
+                                
+                                return bins;
+                              })()
+                            }>
+                              <CartesianGrid strokeDasharray="3 3" />
+                              <XAxis 
+                                dataKey="range" 
+                                fontSize={10} 
+                                interval={0}
+                                angle={-45}
+                                textAnchor="end"
+                                height={60}
+                              />
+                              <YAxis fontSize={10} />
+                              <Tooltip formatter={(value: any) => [`${value} incidents`, 'Count']} />
+                              <Bar dataKey="count" fill="#3B82F6" />
+                            </BarChart>
+                          </ResponsiveContainer>
+                          <p className="text-xs text-gray-500 mt-2">Response times in minutes</p>
+                        </div>
+                        
+                        {/* Service Time Histogram */}
+                        <div>
+                          <h4 className="text-sm font-medium mb-3">Service Time Distribution</h4>
+                          <ResponsiveContainer width="100%" height={200}>
+                            <BarChart data={
+                              (() => {
+                                const times = stationData['service times'].map((time: number) => Math.max(0, time / 60)); // Convert to minutes, ensure positive
+                                const maxTime = Math.max(...times);
+                                const binSize = Math.max(10, Math.ceil(maxTime / 8)); // At least 10 minutes per bin
+                                
+                                const bins = Array.from({ length: 8 }, (_, i) => ({
+                                  range: `${i * binSize}-${(i + 1) * binSize}`,
+                                  count: 0,
+                                  min: i * binSize,
+                                  max: (i + 1) * binSize
+                                }));
+                                
+                                times.forEach((time: number) => {
+                                  const binIndex = Math.min(Math.floor(time / binSize), 7);
+                                  bins[binIndex].count++;
+                                });
+                                
+                                // Ensure all bins are returned, including those with 0 count
+                                return bins.map(bin => ({
+                                  ...bin,
+                                  count: bin.count || 0 // Explicitly set 0 for empty bins
+                                }));
+                              })()
+                            }>
+                              <CartesianGrid strokeDasharray="3 3" />
+                              <XAxis 
+                                dataKey="range" 
+                                fontSize={10} 
+                                interval={0}
+                                angle={-45}
+                                textAnchor="end"
+                                height={60}
+                              />
+                              <YAxis fontSize={10} domain={[0, 'dataMax']} />
+                              <Tooltip formatter={(value: any) => [`${value} incidents`, 'Count']} />
+                              <Bar 
+                                dataKey="count" 
+                                fill="#10B981"
+                              />
+                            </BarChart>
+                          </ResponsiveContainer>
+                          <p className="text-xs text-gray-500 mt-2">Service times in minutes</p>
+                        </div>
+                      </div>
+                      
+                      <div className="mt-4 grid grid-cols-2 lg:grid-cols-4 gap-4 text-center">
+                        <div className="bg-blue-50 p-3 rounded">
+                          <p className="text-xs text-gray-600">Min Response</p>
+                          <p className="text-sm font-semibold text-blue-600">
+                            {Math.min(...stationData['travel times'].map((t: number) => t / 60)).toFixed(1)} min
+                          </p>
+                        </div>
+                        <div className="bg-blue-50 p-3 rounded">
+                          <p className="text-xs text-gray-600">Max Response</p>
+                          <p className="text-sm font-semibold text-blue-600">
+                            {Math.max(...stationData['travel times'].map((t: number) => t / 60)).toFixed(1)} min
+                          </p>
+                        </div>
+                        <div className="bg-green-50 p-3 rounded">
+                          <p className="text-xs text-gray-600">Min Service</p>
+                          <p className="text-sm font-semibold text-green-600">
+                            {Math.min(...stationData['service times'].map((t: number) => Math.max(0, t / 60))).toFixed(1)} min
+                          </p>
+                        </div>
+                        <div className="bg-green-50 p-3 rounded">
+                          <p className="text-xs text-gray-600">Max Service</p>
+                          <p className="text-sm font-semibold text-green-600">
+                            {Math.max(...stationData['service times'].map((t: number) => Math.max(0, t / 60))).toFixed(1)} min
+                          </p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </CollapsibleContent>
+                </Collapsible>
+              </Card>
+            );
+          })
+          : 
+          // Fallback to mock data when no simulation results
+          mockData.stationTimeSeriesData.map((stationData) => (
+            <Card key={stationData.station}>
+              <Collapsible 
+                open={openStations[stationData.station]} 
+                onOpenChange={() => toggleStation(stationData.station)}
+              >
+                <CollapsibleTrigger asChild>
+                  <CardHeader className="cursor-pointer hover:bg-gray-50 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <MapPin className="h-4 w-4" />
+                        {stationData.station} - Sample Data
+                        <Badge variant="secondary" className="ml-2">Sample Data</Badge>
+                      </CardTitle>
+                      <Button variant="ghost" size="sm">
+                        {openStations[stationData.station] ? (
+                          <ChevronDown className="h-4 w-4" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      Run simulation to see detailed station analysis
+                    </div>
+                  </CardHeader>
+                </CollapsibleTrigger>
+                
+                <CollapsibleContent>
+                  <CardContent>
+                    <div className="text-center text-gray-500 py-8">
+                      <Clock className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                      <p>Run a simulation to see response and service time histograms</p>
+                    </div>
+                  </CardContent>
+                </CollapsibleContent>
+              </Collapsible>
+            </Card>
+          ))
+        }
       </div>
     </div>
   );

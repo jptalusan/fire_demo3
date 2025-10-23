@@ -31,17 +31,21 @@ export function SimulationTab({ hasResults, simulationResults }: SimulationTabPr
                 <Clock className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-xl">{simulationResults?.average_response_time ?? '-'} sec</div>
+                <div className="text-xl">{simulationResults?.average_response_time ? Number(simulationResults.average_response_time).toFixed(2) : '-'} sec</div>
                 <p className="text-[11px] text-green-600">Within target range</p>
               </CardContent>
             </Card>
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5">
-                <CardTitle className="text-sm">Area Coverage</CardTitle>
+                <CardTitle className="text-sm">On-Time Response Rate</CardTitle>
                 <MapPin className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-xl">{simulationResults?.coverage_percent ?? '87%'}
+                <div className="text-xl">{simulationResults?.coverage_percent ? 
+                  (typeof simulationResults.coverage_percent === 'string' && simulationResults.coverage_percent.includes('%') 
+                    ? simulationResults.coverage_percent 
+                    : Number(simulationResults.coverage_percent).toFixed(2) + '%') 
+                  : '87%'}
                 </div>
                 <p className="text-[11px] text-muted-foreground">Within 5-minute response</p>
               </CardContent>
@@ -57,27 +61,7 @@ export function SimulationTab({ hasResults, simulationResults }: SimulationTabPr
                 Analysis completed successfully at {new Date().toLocaleTimeString()}
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <h4 className="mb-2">Optimization Recommendations</h4>
-                  <ul className="space-y-1 text-sm">
-                    <li>• Station 2 coverage could be improved by 15%</li>
-                    <li>• Consider adding resources to Brooklyn area</li>
-                    <li>• Current configuration handles 88% of incidents within target time</li>
-                    <li>• Peak hours: 2-4 PM show highest demand</li>
-                  </ul>
-                </div>
-                <div>
-                  <h4 className="mb-2">Scenario Analysis</h4>
-                  <ul className="space-y-1 text-sm">
-                    <li>• Best case response: 2.3 minutes average</li>
-                    <li>• Worst case response: 8.7 minutes average</li>
-                    <li>• Recommended station count: 4-5 stations</li>
-                    <li>• Resource utilization: 73% average</li>
-                  </ul>
-                </div>
-              </div>
+            <CardContent>
             </CardContent>
           </Card>
 
@@ -96,7 +80,10 @@ export function SimulationTab({ hasResults, simulationResults }: SimulationTabPr
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <SimulationPlotsContainer />
+                <SimulationPlotsContainer 
+                  simulationResults={simulationResults}
+                  historicalIncidentStats={undefined}
+                />
               </CardContent>
             </Card>
           </div>
