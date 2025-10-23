@@ -275,7 +275,7 @@ export default function App() {
 
                 {/* Plots Tab */}
                 <TabsContent value="plots" className="m-0 p-4 h-auto">
-                  <PlotsTab simulationResults={simulationResults} />
+                  <PlotsTab simulationResults={simulationResults} historicalIncidentStats={historicalIncidentStats} incidents={incidents} />
                 </TabsContent>
               </div>
             </Tabs>

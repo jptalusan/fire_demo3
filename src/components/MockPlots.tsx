@@ -207,8 +207,15 @@ export const MockBoxPlot: React.FC<{ title: string; data: any[] }> = ({ title, d
 };
 
 // Bar Chart Component
-export const MockBarChart: React.FC<{ title: string; data: any[]; valueKey: string; labelKey: string; unit?: string }> = ({ 
-  title, data, valueKey, labelKey, unit = '' 
+export const MockBarChart: React.FC<{ 
+  title: string; 
+  data: any[]; 
+  valueKey: string; 
+  labelKey: string; 
+  unit?: string;
+  isRealData?: boolean;
+}> = ({ 
+  title, data, valueKey, labelKey, unit = '', isRealData = false 
 }) => {
   const maxValue = Math.max(...data.map(item => item[valueKey]));
   
@@ -218,6 +225,11 @@ export const MockBarChart: React.FC<{ title: string; data: any[]; valueKey: stri
         <CardTitle className="text-base font-medium flex items-center gap-2">
           <TrendingUp className="h-4 w-4" />
           {title}
+          {isRealData ? (
+            <Badge variant="secondary" className="text-xs">Real Data</Badge>
+          ) : (
+            <Badge variant="outline" className="text-xs">Sample Data</Badge>
+          )}
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -296,21 +308,150 @@ export const StationLineChart: React.FC<{ stationData: any }> = ({ stationData }
 };
 
 // Incident Types Pie Chart Component
-export const IncidentTypesPieChart: React.FC = () => {
-  const incidentTypeData = [
-    { type: 'Medical Emergency', count: 580, color: '#4ECDC4' },
-    { type: 'Structure Fire', count: 204, color: '#FF6B6B' },
-    { type: 'Vehicle Accident', count: 304, color: '#4DABF7' },
-    { type: 'Hazmat', count: 50, color: '#69DB7C' },
-    { type: 'Other', count: 109, color: '#FFD43B' }
-  ];
+interface IncidentTypesPieChartProps {
+  historicalIncidentStats?: any;
+  incidents?: any[];
+}
+
+export const IncidentTypesPieChart: React.FC<IncidentTypesPieChartProps> = ({ historicalIncidentStats, incidents = [] }) => {
+  // Create colors mapping for consistent colors based on incident type categories
+  const getIncidentTypeColor = (incidentType: string): string => {
+    const type = incidentType.toLowerCase();
+    
+    // Fire-related incidents - Red shades
+    if (type.includes('fire') || type.includes('smoke') || type.includes('burning')) {
+      return '#FF6B6B';
+    }
+    
+    // Medical/EMS incidents - Teal/Blue shades  
+    if (type.includes('medical') || type.includes('ems') || type.includes('cardiac') || 
+        type.includes('injury') || type.includes('sick') || type.includes('overdose')) {
+      return '#4ECDC4';
+    }
+    
+    // Vehicle/Accident incidents - Blue shades
+    if (type.includes('vehicle') || type.includes('accident') || type.includes('crash') || 
+        type.includes('motor') || type.includes('traffic')) {
+      return '#4DABF7';
+    }
+    
+    // Hazmat/Dangerous incidents - Green shades
+    if (type.includes('hazmat') || type.includes('chemical') || type.includes('gas') || 
+        type.includes('spill') || type.includes('leak')) {
+      return '#69DB7C';
+    }
+    
+    // Rescue operations - Purple shades
+    if (type.includes('rescue') || type.includes('trapped') || type.includes('confined') ||
+        type.includes('water rescue') || type.includes('technical')) {
+      return '#9B59B6';
+    }
+    
+    // Alarm/False alarm - Orange shades
+    if (type.includes('alarm') || type.includes('false') || type.includes('good intent')) {
+      return '#F39C12';
+    }
+    
+    // Default - Yellow shade
+    return '#FFD43B';
+  };
+
+  // Use real data if available, otherwise fall back to mock data
+  let incidentTypeData;
+  if (incidents && incidents.length > 0) {
+    // Process raw incidents array to get incident type distribution
+    const incidentTypeCounts: { [key: string]: number } = {};
+    
+    incidents.forEach(incident => {
+      const incidentType = incident.incident_type || incident.incidentType || 'Unknown';
+      incidentTypeCounts[incidentType] = (incidentTypeCounts[incidentType] || 0) + 1;
+    });
+
+    const totalIncidents = incidents.length;
+    const individualTypes = Object.entries(incidentTypeCounts)
+      .map(([type, count]) => {
+        return {
+          type,
+          count: count as number,
+          percentage: (count / totalIncidents) * 100,
+          color: getIncidentTypeColor(type)
+        };
+      })
+      .sort((a, b) => b.count - a.count); // Sort by count descending
+
+    // Group items with less than 1% into "Other"
+    const significantTypes = individualTypes.filter(item => item.percentage >= 1);
+    const insignificantTypes = individualTypes.filter(item => item.percentage < 1);
+    
+    incidentTypeData = [...significantTypes];
+    
+    // Add "Other" category if there are insignificant types
+    if (insignificantTypes.length > 0) {
+      const otherCount = insignificantTypes.reduce((sum, item) => sum + item.count, 0);
+      incidentTypeData.push({
+        type: 'Other',
+        count: otherCount,
+        percentage: (otherCount / totalIncidents) * 100,
+        color: '#FFD43B' // Yellow for "Other"
+      });
+    }
+  } else if (historicalIncidentStats && historicalIncidentStats.incident_counts) {
+    // Fallback to historicalIncidentStats if available
+    const totalFromStats = Object.values(historicalIncidentStats.incident_counts).reduce((sum: number, count: any) => sum + (count as number), 0);
+    const individualTypes = Object.entries(historicalIncidentStats.incident_counts)
+      .map(([type, count]) => {
+        return {
+          type,
+          count: count as number,
+          percentage: ((count as number) / totalFromStats) * 100,
+          color: getIncidentTypeColor(type)
+        };
+      })
+      .sort((a, b) => b.count - a.count); // Sort by count descending
+
+    // Group items with less than 1% into "Other"
+    const significantTypes = individualTypes.filter(item => item.percentage >= 1);
+    const insignificantTypes = individualTypes.filter(item => item.percentage < 1);
+    
+    incidentTypeData = [...significantTypes];
+    
+    // Add "Other" category if there are insignificant types
+    if (insignificantTypes.length > 0) {
+      const otherCount = insignificantTypes.reduce((sum, item) => sum + item.count, 0);
+      incidentTypeData.push({
+        type: 'Other',
+        count: otherCount,
+        percentage: (otherCount / totalFromStats) * 100,
+        color: '#FFD43B' // Yellow for "Other"
+      });
+    }
+  } else {
+    // Final fallback to mock data
+    incidentTypeData = [
+      { type: 'Medical Emergency', count: 580, color: '#4ECDC4' },
+      { type: 'Structure Fire', count: 204, color: '#FF6B6B' },
+      { type: 'Vehicle Accident', count: 304, color: '#4DABF7' },
+      { type: 'Hazmat', count: 50, color: '#69DB7C' },
+      { type: 'Other', count: 109, color: '#FFD43B' }
+    ];
+  }
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Incident Types Distribution</CardTitle>
+        <CardTitle className="flex items-center gap-2">
+          Incident Types Distribution
+          {incidents && incidents.length > 0 ? (
+            <Badge variant="secondary" className="text-xs">Real Data</Badge>
+          ) : (
+            <Badge variant="outline" className="text-xs">Sample Data</Badge>
+          )}
+        </CardTitle>
         <CardDescription>
-          Breakdown of incident types handled
+          {incidents && incidents.length > 0
+            ? `Breakdown of ${incidents.length} loaded incidents by type` 
+            : "Breakdown of incident types handled (sample data)"
+          }
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -323,22 +464,55 @@ export const IncidentTypesPieChart: React.FC = () => {
               outerRadius={80}
               fill="#8884d8"
               dataKey="count"
-              label={({ type, percent }) => `${type} ${(percent * 100).toFixed(0)}%`}
+              label={({ type, percent }) => {
+                const percentage = (percent * 100).toFixed(1);
+                // Only show label for slices >= 3% to avoid overcrowding
+                return parseFloat(percentage) >= 3 ? `${type} ${percentage}%` : '';
+              }}
             >
               {incidentTypeData.map((entry, index) => (
                 <Cell key={`cell-${index}`} fill={entry.color} />
               ))}
             </Pie>
-            <Tooltip />
+            <Tooltip 
+              formatter={(value: any, name: any, props: any) => [
+                `${value} incidents (${((value / incidentTypeData.reduce((sum, item) => sum + item.count, 0)) * 100).toFixed(1)}%)`,
+                'Count'
+              ]}
+              labelFormatter={(label: any) => `${label}`}
+            />
           </PieChart>
         </ResponsiveContainer>
+        
+        {/* Show summary of data grouping */}
+        <div className="mt-4 text-xs text-gray-500">
+          {incidents && incidents.length > 0 && (
+            <div>
+              Total incidents: {incidents.length} • 
+              Showing {incidentTypeData.length} categories • 
+              Items &lt; 1% grouped as "Other"
+            </div>
+          )}
+        </div>
       </CardContent>
     </Card>
   );
 };
 
 // Main Mock Plots Container
-export const MockPlotsContainer: React.FC = () => {
+interface MockPlotsContainerProps {
+  historicalIncidentStats?: any;
+  simulationResults?: any;
+  stationReports?: any[];
+  incidents?: any[];
+}
+
+export const MockPlotsContainer: React.FC<MockPlotsContainerProps> = ({ 
+  historicalIncidentStats, 
+  simulationResults, 
+  stationReports = [],
+  incidents = []
+}) => {
   const [mockData] = useState(generateMockData());
   const [openStations, setOpenStations] = useState<{ [key: string]: boolean }>({});
 
@@ -359,13 +533,7 @@ export const MockPlotsContainer: React.FC = () => {
         /> */}
        
         {/* Incident Types Pie Chart - moved to second position */}
-        <IncidentTypesPieChart /> 
-        <MockBarChart 
-          title="Total Incidents Covered by Station"
-          data={mockData.stationIncidentCounts}
-          valueKey="totalIncidents"
-          labelKey="station"
-        />
+        <IncidentTypesPieChart historicalIncidentStats={historicalIncidentStats} incidents={incidents} />
         
         <MockBarChart 
           title="Average Response Times by Category"
@@ -373,6 +541,7 @@ export const MockPlotsContainer: React.FC = () => {
           valueKey="avgResponseTime"
           labelKey="category"
           unit=" min"
+          isRealData={false}
         />
         
         <MockBarChart 
@@ -381,6 +550,7 @@ export const MockPlotsContainer: React.FC = () => {
           valueKey="avgDistance"
           labelKey="vehicleType"
           unit=" km"
+          isRealData={false}
         />
       </div>
 

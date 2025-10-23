@@ -18,19 +18,30 @@ interface BoxPlotChartProps {
   yAxisLabel?: string;
 }
 
-export function BoxPlotChart({ data, width = "100%", height = 400, yAxisLabel = "Value" }: BoxPlotChartProps) {
-  // Calculate axis bounds
-  const allValues = data.flatMap(d => [d.min, d.max]);
-  const yMin = Math.min(...allValues) * 0.9;
-  const yMax = Math.max(...allValues) * 1.1;
+export function BoxPlotChart({ data, width = "100%", height = 500, yAxisLabel = "Value" }: BoxPlotChartProps) {
+  // Calculate chart dimensions based on data
+  const margin = { top: 20, right: 60, bottom: 60, left: 60 };
+  const boxWidth = 60;
+  const spacing = 20;
+  const minWidth = data.length * (boxWidth + spacing) + margin.left + margin.right;
+  const chartWidth = Math.max(800, minWidth);
   
-  // Box plot styling
-  const boxWidth = 40;
+  // Calculate domain with some padding
+  const allValues = data.flatMap(d => [d.min, d.q1, d.median, d.q3, d.max, d.mean]);
+  const dataMin = Math.min(...allValues);
+  const dataMax = Math.max(...allValues);
+  const padding = (dataMax - dataMin) * 0.1;
+  const yDomain = [Math.max(0, dataMin - padding), dataMax + padding];
+  const [yMin, yMax] = yDomain;
   const whiskerWidth = 20;
-  
+
   return (
-    <ResponsiveContainer width={width} height={height}>
-      <svg viewBox={`0 0 800 ${height}`} style={{ width: '100%', height: '100%' }}>
+    <div className="w-full h-[500px] overflow-x-auto overflow-y-hidden">
+      <svg
+        width={chartWidth}
+        height={height}
+        style={{ display: 'block', margin: '0 auto' }}
+      >
         {/* Background grid */}
         <defs>
           <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
@@ -40,25 +51,25 @@ export function BoxPlotChart({ data, width = "100%", height = 400, yAxisLabel = 
         <rect width="100%" height="100%" fill="url(#grid)" />
         
         {/* Y-axis */}
-        <line x1="80" y1="50" x2="80" y2={height - 80} stroke="#666" strokeWidth="1"/>
+        <line x1={margin.left} y1={margin.top} x2={margin.left} y2={height - margin.bottom} stroke="#666" strokeWidth="1"/>
         
         {/* X-axis */}
-        <line x1="80" y1={height - 80} x2="720" y2={height - 80} stroke="#666" strokeWidth="1"/>
+        <line x1={margin.left} y1={height - margin.bottom} x2={chartWidth - margin.right} y2={height - margin.bottom} stroke="#666" strokeWidth="1"/>
         
         {/* Y-axis label */}
-        <text x="30" y={height / 2} textAnchor="middle" transform={`rotate(-90, 30, ${height / 2})`} 
-              fontSize="12" fill="#666">
+        <text x="20" y={height / 2} textAnchor="middle" transform={`rotate(-90, 20, ${height / 2})`} 
+              fontSize="14" fill="#666" fontWeight="500">
           {yAxisLabel}
         </text>
         
         {/* Box plots */}
         {data.map((item, index) => {
-          const x = 120 + index * 80; // Center position for each box
+          const x = margin.left + (boxWidth / 2) + index * (boxWidth + spacing); // Proper spacing between stations
           
           // Scale values to fit the chart
           const scaleY = (value: number) => {
             const ratio = (value - yMin) / (yMax - yMin);
-            return height - 80 - ratio * (height - 130);
+            return height - margin.bottom - ratio * (height - margin.top - margin.bottom);
           };
           
           const minY = scaleY(item.min);
@@ -97,8 +108,11 @@ export function BoxPlotChart({ data, width = "100%", height = 400, yAxisLabel = 
               <line x1={x - whiskerWidth/2} y1={minY} x2={x + whiskerWidth/2} y2={minY} stroke="#333" strokeWidth="2"/>
               
               {/* Station label */}
-              <text x={x} y={height - 60} textAnchor="middle" fontSize="11" fill="#666">
-                {item.stationName.replace('station_', 'Station ')}
+              <text x={x} y={height - margin.bottom + 20} textAnchor="middle" fontSize="12" fill="#666" fontWeight="500">
+                {item.stationName.startsWith('station_') 
+                  ? `Station ${item.stationName.replace('station_', '')}`
+                  : item.stationName.replace('Station ', '')
+                }
               </text>
             </g>
           );
@@ -107,19 +121,19 @@ export function BoxPlotChart({ data, width = "100%", height = 400, yAxisLabel = 
         {/* Y-axis ticks and labels */}
         {Array.from({ length: 6 }, (_, i) => {
           const value = yMin + (yMax - yMin) * i / 5;
-          const y = height - 80 - (i / 5) * (height - 130);
+          const y = height - margin.bottom - (i / 5) * (height - margin.top - margin.bottom);
           return (
             <g key={i}>
-              <line x1="75" y1={y} x2="85" y2={y} stroke="#666" strokeWidth="1"/>
-              <text x="70" y={y + 4} textAnchor="end" fontSize="10" fill="#666">
+              <line x1={margin.left - 5} y1={y} x2={margin.left + 5} y2={y} stroke="#666" strokeWidth="1"/>
+              <text x={margin.left - 10} y={y + 4} textAnchor="end" fontSize="12" fill="#666">
                 {value.toFixed(1)}
               </text>
             </g>
           );
         })}
         
-        {/* Legend */}
-        <g transform="translate(550, 60)">
+        {/* Legend - positioned at the end */}
+        <g transform={`translate(${chartWidth - 180}, 60)`}>
           <text x="0" y="0" fontSize="12" fontWeight="bold" fill="#333">Legend:</text>
           
           {/* Box */}
@@ -141,6 +155,6 @@ export function BoxPlotChart({ data, width = "100%", height = 400, yAxisLabel = 
           <text x="35" y="82" fontSize="10" fill="#666">Min/Max</text>
         </g>
       </svg>
-    </ResponsiveContainer>
+    </div>
   );
 }

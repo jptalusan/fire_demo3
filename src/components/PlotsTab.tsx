@@ -1,5 +1,6 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
+import { Badge } from './ui/badge';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, ReferenceLine } from 'recharts';
 import { processStationReport, processStationTravelTimes, StationReport, StationTravelTimes } from '../utils/dataProcessing';
 import { BoxPlotChart } from './BoxPlotChart';
@@ -7,9 +8,11 @@ import { MockPlotsContainer, IncidentTypesPieChart, MockBoxPlot } from './MockPl
 
 interface PlotsTabProps {
   simulationResults?: any;
+  historicalIncidentStats?: any;
+  incidents?: any[];
 }
 
-export function PlotsTab({ simulationResults }: PlotsTabProps) {
+export function PlotsTab({ simulationResults, historicalIncidentStats, incidents = [] }: PlotsTabProps) {
   console.log('PlotsTab simulationResults:', simulationResults);
 
   // Build response time chart data from simulation station_report
@@ -72,59 +75,44 @@ export function PlotsTab({ simulationResults }: PlotsTabProps) {
   ];
 
   // Generate mock data for the box plot with proper quartile relationships
-  const mockStationTravelTimes = ['Station 1', 'Station 2', 'Station 3', 'Station 4', 'Station 5', 'Station 6'].map(station => {
+  const mockStationTravelTimes = ['station_01', 'station_02', 'station_03', 'station_04', 'station_05', 'station_06'].map(station => {
     const min = Math.round((Math.random() * 2 + 1) * 100) / 100; // 1-3 minutes
     const q1 = min + Math.round((Math.random() * 3 + 2) * 100) / 100; // Q1 > min
     const median = q1 + Math.round((Math.random() * 2 + 1) * 100) / 100; // median > Q1
     const q3 = median + Math.round((Math.random() * 2 + 1) * 100) / 100; // Q3 > median
     const max = q3 + Math.round((Math.random() * 3 + 2) * 100) / 100; // max > Q3
-    const avgTime = (min + q1 + median + q3 + max) / 5; // Calculate mean
+    const mean = (min + q1 + median + q3 + max) / 5; // Calculate mean
     
     return {
-      station,
-      avgTime: Math.round(avgTime * 100) / 100,
-      q1,
-      q3,
+      stationName: station,
       min,
+      q1,
+      median,
+      q3,
       max,
-      median
+      mean: Math.round(mean * 100) / 100
     };
   });
 
   return (
     <div className="h-full overflow-auto space-y-4 p-4">
       {/* Travel Times Box Plot - Full Width */}
-      <Card className="mb-4">
-        <CardHeader>
-          <CardTitle>Travel Times Distribution by Station</CardTitle>
-          <CardDescription>
-            Box plot showing travel time distribution (minutes) for each station from simulation
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {stationTravelTimes.length > 0 ? (
+              {/* Travel Time Distribution */}
+        <Card className="w-full">
+          <CardHeader>
+            <CardTitle>Travel Time Distribution</CardTitle>
+            <CardDescription>Distribution of travel times for different scenarios</CardDescription>
+          </CardHeader>
+          <CardContent>
             <BoxPlotChart 
-              data={stationTravelTimes.map(station => ({
-                stationName: station.stationName,
-                min: station.min,
-                q1: station.q1,
-                median: station.median,
-                q3: station.q3,
-                max: station.max,
-                mean: station.mean
-              }))}
-              height={400}
-              yAxisLabel="Travel Time (minutes)"
+              data={stationTravelTimes.length > 0 ? stationTravelTimes : mockStationTravelTimes} 
+              yAxisLabel="Travel Time (minutes)" 
             />
-          ) : (
-            <div className="text-sm text-muted-foreground p-4 text-center">
-              Run a simulation to see travel time distribution plots.
-            </div>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      {/* Response Time and Incidents Charts - Full Width Layout */}
+      <div className="space-y-4">
         {/* Response Time Chart (from actual simulation results) */}
         <Card>
           <CardHeader>
@@ -134,11 +122,19 @@ export function PlotsTab({ simulationResults }: PlotsTabProps) {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {responseTimeData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={responseTimeData}>
+            {simulationResults && simulationResults.station_report && responseTimeData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={450}>
+                <BarChart data={responseTimeData} margin={{ top: 20, right: 30, left: 20, bottom: 100 }}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="station" interval={0} angle={0} textAnchor="middle" height={60} tickMargin={8} />
+                  <XAxis 
+                    dataKey="station" 
+                    interval={0} 
+                    angle={-45} 
+                    textAnchor="end" 
+                    height={100} 
+                    tickMargin={15}
+                    fontSize={11}
+                  />
                   <YAxis label={{ value: 'Minutes', angle: -90, position: 'insideLeft' }} />
                   <Tooltip formatter={(value: any, name: any) => [value, name === 'avgTime' ? 'Avg Time (min)' : name === 'target' ? 'Target (min)' : name]} />
                   <Bar dataKey="avgTime" fill="#8884d8" name="Avg Time (min)" />
@@ -162,11 +158,19 @@ export function PlotsTab({ simulationResults }: PlotsTabProps) {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {responseTimeData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={responseTimeData}>
+            {simulationResults && simulationResults.station_report && responseTimeData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={450}>
+                <BarChart data={responseTimeData} margin={{ top: 20, right: 30, left: 20, bottom: 100 }}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="station" interval={0} angle={0} textAnchor="middle" height={60} tickMargin={8} />
+                  <XAxis 
+                    dataKey="station" 
+                    interval={0} 
+                    angle={-45} 
+                    textAnchor="end" 
+                    height={100} 
+                    tickMargin={15}
+                    fontSize={11}
+                  />
                   <YAxis label={{ value: 'Incidents', angle: -90, position: 'insideLeft' }} />
                   <Tooltip formatter={(value: any, name: any) => [value, name === 'incidents' ? 'Incidents' : name]} />
                   <Bar dataKey="incidents" fill="#4ECDC4" name="Incidents" />
@@ -183,15 +187,37 @@ export function PlotsTab({ simulationResults }: PlotsTabProps) {
 
 
 
-      {/* Enhanced Mock Analytics */}
+      {/* Enhanced Analytics with Real Data */}
       <div className="mt-8">
         <div className="mb-6">
           <h2 className="text-xl font-semibold mb-2">Advanced Analytics</h2>
           <p className="text-sm text-muted-foreground">
-            Detailed performance metrics and station-specific analysis
+            {incidents.length > 0 || (simulationResults && simulationResults.station_report)
+              ? "Performance metrics using real data from loaded incidents and simulation results"
+              : "Detailed performance metrics and station-specific analysis with sample data"
+            }
           </p>
+          {incidents && incidents.length > 0 && (
+            <div className="mt-2">
+              <Badge variant="secondary" className="text-xs">
+                {incidents.length} Real Incidents Loaded
+              </Badge>
+            </div>
+          )}
+          {simulationResults && simulationResults.station_report && (
+            <div className="mt-2">
+              <Badge variant="secondary" className="text-xs">
+                Simulation Data Available
+              </Badge>
+            </div>
+          )}
         </div>
-        <MockPlotsContainer />
+        <MockPlotsContainer 
+          historicalIncidentStats={historicalIncidentStats} 
+          simulationResults={simulationResults}
+          stationReports={stationReports}
+          incidents={incidents}
+        />
       </div>
     </div>
   );
