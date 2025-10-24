@@ -44,6 +44,8 @@ interface MapSectionProps {
   selectedDispatchPolicy: string;
   selectedServiceZoneFile: string;
   selectedStationData?: string;
+  selectedGridSize?: string;
+  selectedNewStations?: number;
   stations: ProcessedStation[];
   onStationsChange: (stations: ProcessedStation[]) => void;
   onApparatusChange?: (stationId: string, apparatus: Apparatus[]) => void;
@@ -83,6 +85,8 @@ export function MapSection({
   selectedDispatchPolicy,
   selectedServiceZoneFile,
   selectedStationData,
+  selectedGridSize,
+  selectedNewStations,
   stations, 
   onStationsChange,
   onApparatusChange,
@@ -275,9 +279,20 @@ export function MapSection({
     }).filter(Boolean); // Filter out any null entries from empty lines
   }, []);
 
+  // Clear grids layer when grid size changes for optimized stations
+  useEffect(() => {
+    if (currentStationData === 'optimized_stations' && gridsLayer && mapInstance) {
+      mapInstance.removeLayer(gridsLayer);
+      setGridsLayer(null);
+      setShowGrids(false);
+    }
+  }, [selectedGridSize, currentStationData, mapInstance]);
+
   // Prepare layer URLs and (optionally) load default stations for selected station dataset.
   const loadGeographicalLayers = useCallback(async (stationDataId: string) => {
     if (!mapInstance) return;
+
+
 
     // Mark as current immediately to avoid duplicate re-entrancy while async work runs
     setCurrentStationData(stationDataId);
@@ -288,16 +303,33 @@ export function MapSection({
     if (!stationConfig) return;
 
     // Set URLs for lazy-loading on demand via toggles
-    gridsUrlRef.current = stationConfig.grids ? `/data/${stationConfig.grids}` : null;
+    let gridFile = stationConfig.grids;
+    
+    // For optimized stations, use the grid file from the selected grid size configuration
+    if (stationDataId === 'optimized_stations' && selectedGridSize && stationConfig.gridSizes) {
+      const selectedGridConfig = stationConfig.gridSizes.find(gs => gs.id === selectedGridSize);
+      if (selectedGridConfig && selectedGridConfig.grids) {
+        gridFile = selectedGridConfig.grids;
+      }
+    }
+    
+    gridsUrlRef.current = gridFile ? `/data/${gridFile}` : null;
     zonesUrlRef.current = stationConfig.zones ? `/data/${stationConfig.zones}` : null;
 
+    // Clear existing apparatus data to prevent duplicates
+    setStationApparatus(new Map());
+    setStationApparatusCounts(new Map());
+    setOriginalApparatusCounts(new Map());
+
     // Clear existing layers from map but don't fetch new ones yet
-    if (gridsLayer) {
+    // Only clear if we're changing to a different station dataset, not just reloading the same one
+    if (gridsLayer && currentStationData !== stationDataId) {
       mapInstance.removeLayer(gridsLayer);
       setGridsLayer(null);
       setShowGrids(false);
     }
-    if (zonesLayer) {
+    
+    if (zonesLayer && currentStationData !== stationDataId) {
       mapInstance.removeLayer(zonesLayer);
       setZonesLayer(null);
       setShowZones(false);
@@ -306,18 +338,22 @@ export function MapSection({
     // Load stations from the configured CSV file
     if (stationConfig.stations && !selectedStationFile) {
       try {
-        const stationsUrl = `/data/${stationConfig.stations}`;
-        console.log('Loading stations from config:', stationDataId, '-> CSV file:', stationsUrl);
-        const csvText = await fetchTextCached(stationsUrl);
-        const parsedStations = parseCSV(csvText);
+        // Always load existing stations first
+        const existingStationsUrl = `/data/${stationConfig.stations}`;
+        console.log('Loading existing stations from:', existingStationsUrl);
+        const existingCsvText = await fetchTextCached(existingStationsUrl);
+        const existingParsedStations = parseCSV(existingCsvText);
 
-        const processedStations = parsedStations.slice(0, 100).map((row, index) => {
+        // Process existing stations
+        const existingStations = existingParsedStations.slice(0, 100).map((row, index) => {
           const stationNumberMatch = row.Stations?.match(/(\d+)/) || row['Facility Name']?.match(/(\d+)/);
           const stationNumber = stationNumberMatch ? parseInt(stationNumberMatch[1]) : index + 1;
+          const stationName = row.Stations || row['Facility Name'] || `Station ${stationNumber}`;
+          const stationId = row.StationID || row.id || `station-${index}`;
 
           const station: ProcessedStation = {
-            id: row.StationID || row.id || `station-${index}`,
-            name: row.Stations || row['Facility Name'] || `Station ${stationNumber}`,
+            id: stationId,
+            name: stationName,
             address: row.Address || 'Address not available',
             lat: parseFloat(row.lat),
             lon: parseFloat(row.lon),
@@ -326,6 +362,7 @@ export function MapSection({
             apparatus: []
           };
 
+          // Process existing station apparatus
           const apparatus = createApparatusFromCSV(row, station.id, stationNumber);
           setStationApparatus(prev => new Map(prev).set(station.id, apparatus));
 
@@ -336,8 +373,100 @@ export function MapSection({
           return station;
         }).filter(station => !isNaN(station.lat) && !isNaN(station.lon));
 
-        console.log('Processed stations from CSV (default):', processedStations.length);
-        onStationsChange(processedStations);
+        let allStations = [...existingStations];
+
+        // If optimized stations is selected, load and add new stations
+        if (stationDataId === 'optimized_stations') {
+          const gridSize = selectedGridSize || '1_mile';
+          const newStationCount = selectedNewStations || 1;
+          
+          // Handle different grid size formats for file paths
+          let folderName: string;
+          let fileName: string;
+          
+          if (gridSize === '0.5_mile') {
+            folderName = 'grid_0.5';
+            fileName = 'grid05';
+          } else {
+            // Default to 1 mile
+            folderName = 'grid_1';
+            fileName = 'grid1';
+          }
+          
+          const optimizedStationsUrl = `/data/optimized_firestations/${folderName}/optimized_fire_stations_${fileName}_new_stations${newStationCount}.csv`;
+          console.log('Loading new optimized stations from:', optimizedStationsUrl);
+          
+          try {
+            const optimizedCsvText = await fetchTextCached(optimizedStationsUrl);
+            const optimizedParsedStations = parseCSV(optimizedCsvText);
+
+            // Process new optimized stations
+            const newStations = optimizedParsedStations.map((row, index) => {
+              const stationId = row.StationID || `new-station-${index}`;
+              const stationName = row.Stations || `Station ${index + 1}`;
+              const nameMatch = stationName.match(/(\d+)/);
+              const stationNumber = nameMatch ? parseInt(nameMatch[1]) : index + 40; // Start from 40+ for new stations
+
+              const station: ProcessedStation = {
+                id: stationId,
+                name: stationName,
+                address: 'New Optimized Station',
+                lat: parseFloat(row.lat),
+                lon: parseFloat(row.lon),
+                stationNumber: stationNumber,
+                displayName: `Station ${stationNumber.toString().padStart(2, '0')}`,
+                apparatus: []
+              };
+
+              // Add default apparatus for new stations: 1 Engine + 1 Ambulance
+              const apparatus: Apparatus[] = [
+                {
+                  id: `${station.id}-engine-1`,
+                  type: 'Engine',
+                  name: 'Engine 1',
+                  status: 'Available',
+                  crew: 4
+                },
+                {
+                  id: `${station.id}-ambulance-1`,
+                  type: 'Ambulance',
+                  name: 'Ambulance 1',
+                  status: 'Available',
+                  crew: 2
+                }
+              ];
+              setStationApparatus(prev => new Map(prev).set(station.id, apparatus));
+
+              // Set apparatus counts for new stations (matching the actual apparatus created above)
+              const apparatusCounts = {
+                Engine_ID: 1,    // We create 1 Engine
+                Truck: 0,
+                Rescue: 0,
+                Hazard: 0,
+                Squad: 0,
+                FAST: 0,
+                Medic: 1,        // We create 1 Ambulance (but system uses "Medic" in counts)
+                Brush: 0,
+                Boat: 0,
+                UTV: 0,
+                REACH: 0,
+                Chief: 0
+              };
+              setStationApparatusCounts(prev => new Map(prev).set(station.id, apparatusCounts));
+              setOriginalApparatusCounts(prev => new Map(prev).set(station.id, { ...apparatusCounts }));
+
+              return station;
+            }).filter(station => !isNaN(station.lat) && !isNaN(station.lon));
+
+            allStations = [...existingStations, ...newStations];
+            console.log(`Added ${newStations.length} new optimized stations to ${existingStations.length} existing stations`);
+          } catch (optimizedError) {
+            console.error('Error loading optimized stations, using existing only:', optimizedError);
+          }
+        }
+
+        console.log('Total processed stations:', allStations.length);
+        onStationsChange(allStations);
       } catch (error) {
         console.error('Error loading default stations from CSV:', error);
       } finally {
@@ -347,16 +476,24 @@ export function MapSection({
       // No stations to load from config
       setIsLoadingStations(false);
     }
-  }, [mapInstance, fetchTextCached, parseCSV, createApparatusFromCSV, extractApparatusCountsFromCSV, onStationsChange, selectedStationFile, gridsLayer, zonesLayer]);
+  }, [mapInstance, fetchTextCached, parseCSV, createApparatusFromCSV, extractApparatusCountsFromCSV, onStationsChange, selectedStationFile, gridsLayer, zonesLayer, selectedGridSize, selectedNewStations]);
   const toggleGridsLayer = useCallback(async () => {
     if (!mapInstance) return;
 
     // Lazy-load grids layer on first toggle
     if (!gridsLayer) {
-      if (!gridsUrlRef.current) return;
+      let gridUrl = gridsUrlRef.current;
+      
+      if (!gridUrl) return;
+      
       try {
-        const gridsData = await fetchJsonCached(gridsUrlRef.current);
+        const gridsData = await fetchJsonCached(gridUrl);
+        if (!gridsData || !gridsData.features) {
+          console.error('Invalid grid data received');
+          return;
+        }
         const gridsLayerGroup = L.layerGroup();
+        
         L.geoJSON(gridsData, {
           style: {
             color: '#2563eb',
@@ -367,13 +504,20 @@ export function MapSection({
           },
           onEachFeature: (feature, layer) => {
             if (feature.properties) {
-              const { primary_zone, grid_id, intersecting_zones } = feature.properties;
+              const props = feature.properties;
+              // Handle different property formats
+              const gridId = props.grid_id || props.cell_id || 'N/A';
+              const primaryZone = props.primary_zone || 'N/A';
+              const intersectingZones = props.intersecting_zones || 'N/A';
+              const coordinates = props.x && props.y ? `(${props.x.toFixed(4)}, ${props.y.toFixed(4)})` : '';
+              
               const popupContent = `
                 <div class="p-2">
                   <h4 class="font-semibold">Grid Information</h4>
-                  <p><strong>Grid ID:</strong> ${grid_id || 'N/A'}</p>
-                  <p><strong>Primary Zone:</strong> ${primary_zone || 'N/A'}</p>
-                  <p><strong>Intersecting Zones:</strong> ${intersecting_zones || 'N/A'}</p>
+                  <p><strong>Grid ID:</strong> ${gridId}</p>
+                  ${coordinates ? `<p><strong>Coordinates:</strong> ${coordinates}</p>` : ''}
+                  <p><strong>Primary Zone:</strong> ${primaryZone}</p>
+                  <p><strong>Intersecting Zones:</strong> ${intersectingZones}</p>
                 </div>
               `;
               layer.bindPopup(popupContent);
@@ -398,7 +542,7 @@ export function MapSection({
       gridsLayer.addTo(mapInstance);
       setShowGrids(true);
     }
-  }, [mapInstance, gridsLayer, showGrids, fetchJsonCached]);
+  }, [mapInstance, gridsLayer, showGrids, fetchJsonCached, currentStationData, selectedGridSize]);
 
   // Toggle zones layer
   const toggleZonesLayer = useCallback(async () => {
@@ -634,13 +778,16 @@ export function MapSection({
 
     console.log(`Station data change - selectedStationData: ${selectedStationData}, currentStationData: ${currentStationData}`);
     
-    if (selectedStationData !== currentStationData) {
+    const shouldReload = selectedStationData !== currentStationData || 
+                        (selectedStationData === 'optimized_stations');
+    
+    if (shouldReload) {
       console.log(`Loading station dataset config: ${selectedStationData} (prev: ${currentStationData})`);
       loadGeographicalLayers(selectedStationData);
     } else {
       console.log(`No change needed - already loaded: ${currentStationData}`);
     }
-  }, [mapInstance, selectedStationData, currentStationData, loadGeographicalLayers]);
+  }, [mapInstance, selectedStationData, currentStationData, loadGeographicalLayers, selectedGridSize, selectedNewStations]);
 
   // Set up global handlers
   useEffect(() => {

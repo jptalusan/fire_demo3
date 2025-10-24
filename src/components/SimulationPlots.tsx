@@ -225,27 +225,28 @@ export const IncidentProbabilityHeatmap: React.FC = () => {
 // Compact Metadata Cards Component
 interface CompactMetadataCardsProps {
   simulationResults?: any;
+  incidentsCount?: number;
 }
 
-export const CompactMetadataCards: React.FC<CompactMetadataCardsProps> = ({ simulationResults }) => {
+export const CompactMetadataCards: React.FC<CompactMetadataCardsProps> = ({ simulationResults, incidentsCount }) => {
   // Calculate success rate from simulation results
   const calculateSuccessRate = () => {
     if (!simulationResults) {
-      return '96.4%'; // fallback based on your example: 405/420
+      return 'N/A';
     }
     
-    // Success Rate = incidents in simulation (405) / total incidents loaded (420)
-    const totalIncidentsInSimulation = simulationResults.total_incidents; // 405 from simulation
+    // Success Rate = incidents in simulation / total incidents loaded
+    const totalIncidentsInSimulation = simulationResults.total_incidents;
     
-    // The total loaded incidents should come from the incidents overview
-    // This might be passed separately or available in simulationResults
-    const totalIncidentsLoaded = simulationResults.total_incidents_loaded || 
+    // Use the actual incidentsCount passed from App.tsx (the 333 total incidents)
+    const totalIncidentsLoaded = incidentsCount || 
+                                 simulationResults.total_incidents_loaded || 
                                  simulationResults.incidents_total || 
                                  simulationResults.loaded_incidents ||
-                                 420; // fallback to your example
+                                 simulationResults.original_incidents_count;
     
     if (!totalIncidentsInSimulation || !totalIncidentsLoaded) {
-      return '96.4%'; // fallback
+      return 'N/A';
     }
     
     const successRate = ((totalIncidentsInSimulation / totalIncidentsLoaded) * 100).toFixed(1);
@@ -313,18 +314,20 @@ export const CompactMetadataCards: React.FC<CompactMetadataCardsProps> = ({ simu
 interface SimulationPlotsContainerProps {
   simulationResults?: any;
   historicalIncidentStats?: any;
+  incidentsCount?: number;
 }
 
 export const SimulationPlotsContainer: React.FC<SimulationPlotsContainerProps> = ({ 
   simulationResults, 
-  historicalIncidentStats 
+  historicalIncidentStats,
+  incidentsCount 
 }) => {
   return (
     <div className="space-y-6">
       {/* Compact Performance Analytics */}
       <div>
         <h3 className="text-lg font-semibold mb-4">Performance Analytics</h3>
-        <CompactMetadataCards simulationResults={simulationResults} />
+        <CompactMetadataCards simulationResults={simulationResults} incidentsCount={incidentsCount} />
       </div>
 
       {/* Single Incident Probability Heatmap - Commented out for now */}
@@ -421,39 +424,6 @@ export const SimulationPlotsContainer: React.FC<SimulationPlotsContainerProps> =
             isRealData={!!(simulationResults && simulationResults.vehicle_report)}
           />
         </div>
-      </div>
-
-      {/* Summary Insights */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="p-4">
-          <div className="flex items-center gap-3">
-            <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-            <div>
-              <div className="font-medium">Peak Activity</div>
-              <div className="text-sm text-gray-600">2-6 PM across all stations</div>
-            </div>
-          </div>
-        </Card>
-        
-        <Card className="p-4">
-          <div className="flex items-center gap-3">
-            <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
-            <div>
-              <div className="font-medium">High Risk Periods</div>
-              <div className="text-sm text-gray-600">Weekday rush hours</div>
-            </div>
-          </div>
-        </Card>
-        
-        <Card className="p-4">
-          <div className="flex items-center gap-3">
-            <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-            <div>
-              <div className="font-medium">Optimal Coverage</div>
-              <div className="text-sm text-gray-600">85% target achievement</div>
-            </div>
-          </div>
-        </Card>
       </div>
     </div>
   );

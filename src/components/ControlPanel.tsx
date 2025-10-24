@@ -27,6 +27,10 @@ interface ControlPanelProps {
   originalApparatusCounts: Map<string, ApparatusCounts>;
   selectedStationData?: string;
   onStationDataChange?: (data: string) => void;
+  selectedGridSize?: string;
+  onGridSizeChange?: (gridSize: string) => void;
+  selectedNewStations?: number;
+  onNewStationsChange?: (count: number) => void;
   onStationsChange: (stations: ProcessedStation[]) => void;
   selectedDispatchPolicy?: string;
   onDispatchPolicyChange?: (policy: string) => void;
@@ -40,6 +44,7 @@ interface ControlPanelProps {
   onEndDateChange?: (date: Date | undefined) => void;
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
+  incidentsCount?: number;
   onHistoricalIncidentStatsChange?: (stats: any) => void;
   onHistoricalIncidentErrorChange?: (error: string | null) => void;
   onIncidentsChange?: (incidents: any[]) => void;
@@ -59,6 +64,10 @@ export function ControlPanel({
   originalApparatusCounts,
   selectedStationData,
   onStationDataChange,
+  selectedGridSize,
+  onGridSizeChange,
+  selectedNewStations,
+  onNewStationsChange,
   onStationsChange, // Add this line
   selectedDispatchPolicy = controlPanelConfig.dispatchPolicies.default,
   onDispatchPolicyChange,
@@ -75,6 +84,7 @@ export function ControlPanel({
   onHistoricalIncidentStatsChange,
   onHistoricalIncidentErrorChange,
   onIncidentsChange,
+  incidentsCount = 0,
 }: ControlPanelProps) {
   const [fireStationsFile, setFireStationsFile] = useState<File | null>(null);
   const [incidentsFile, setIncidentsFile] = useState<File | null>(null);
@@ -86,6 +96,12 @@ export function ControlPanel({
   const [isSimulating, setIsSimulating] = useState(false);
   const [isLoadingIncidents, setIsLoadingIncidents] = useState(false);
   const [incidentLoadError, setIncidentLoadError] = useState<string | null>(null);
+  
+  // Track the date range for currently loaded incidents
+  const [loadedIncidentsDateRange, setLoadedIncidentsDateRange] = useState<{
+    startDate: Date | null;
+    endDate: Date | null;
+  }>({ startDate: null, endDate: null });
   
   // Model selection states - start with default values
   const [selectedTravelTimeModel, setSelectedTravelTimeModel] = useState(controlPanelConfig.travelTimeModels.default);
@@ -110,6 +126,18 @@ export function ControlPanel({
     }
   }, [selectedDispatchPolicy]);
 
+  // Helper function to check if current date range matches loaded incidents date range
+  const isDateRangeMatching = () => {
+    // If no date range is selected, consider it matching (for models that don't use date ranges)
+    if (!startDate || !endDate) {
+      return !loadedIncidentsDateRange.startDate && !loadedIncidentsDateRange.endDate;
+    }
+    
+    // Compare the current date range with the loaded incidents date range
+    return loadedIncidentsDateRange.startDate?.getTime() === startDate.getTime() &&
+           loadedIncidentsDateRange.endDate?.getTime() === endDate.getTime();
+  };
+
   // Validation function to check if all required fields are selected
   const isFormValid = () => {
     const requiredFields = [
@@ -123,17 +151,28 @@ export function ControlPanel({
     // Check if all required fields have values
     const allFieldsSelected = requiredFields.every(field => field && field.trim() !== '');
     
+    // Check if incidents are loaded (must have more than 0 incidents)
+    const incidentsLoaded = incidentsCount && incidentsCount > 0;
+    
+    // Check if the loaded incidents match the current date range
+    const dateRangeMatches = isDateRangeMatching();
+    
     // If firebeats policy is selected, also check service zone file
     if (selectedDispatchPolicy === 'firebeats') {
-      return allFieldsSelected && selectedServiceZoneFile && selectedServiceZoneFile.trim() !== '';
+      return allFieldsSelected && incidentsLoaded && dateRangeMatches && selectedServiceZoneFile && selectedServiceZoneFile.trim() !== '';
     }
     
-    return allFieldsSelected;
+    return allFieldsSelected && incidentsLoaded && dateRangeMatches;
   };
 
   // Get list of missing required fields for better user feedback
   const getMissingFields = () => {
     const missing = [];
+    if (!incidentsCount || incidentsCount <= 0) {
+      missing.push('Load Incidents');
+    } else if (!isDateRangeMatching()) {
+      missing.push('Reload Incidents for Date Range');
+    }
     if (!selectedStationData) missing.push('Station Data');
     if (!selectedIncidentModel) missing.push('Incident Model');
     if (!selectedTravelTimeModel) missing.push('Travel Time Model');
@@ -707,6 +746,59 @@ export function ControlPanel({
               </div>
             </div>
 
+            {/* Optimized Stations Options - Show only when optimized_stations is selected */}
+            {selectedStationData === 'optimized_stations' && (
+              <div className="space-y-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <h5 className="font-medium text-blue-900">Optimization Parameters</h5>
+                
+                {/* Grid Size Selection */}
+                <div>
+                  <Label>Grid Size</Label>
+                  <div className="mt-2">
+                    <select
+                      value={selectedGridSize || '1_mile'}
+                      onChange={(e) => onGridSizeChange?.(e.target.value)}
+                      className="w-full p-2 border rounded"
+                    >
+                      <option value="0.5_mile">0.5 Mile Grid</option>
+                      <option value="1_mile">1 Mile Grid</option>
+                    </select>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Grid resolution for station optimization
+                    </p>
+                  </div>
+                </div>
+
+                {/* Number of New Stations */}
+                <div>
+                  <Label>Number of New Stations</Label>
+                  <div className="mt-2">
+                    <select
+                      value={selectedNewStations || 1}
+                      onChange={(e) => onNewStationsChange?.(parseInt(e.target.value))}
+                      className="w-full p-2 border rounded"
+                    >
+                      {(() => {
+                        // Get max stations for current grid size
+                        const optimizedOption = controlPanelConfig.stationData.options.find(opt => opt.id === 'optimized_stations');
+                        const currentGrid = optimizedOption?.gridSizes?.find(grid => grid.id === (selectedGridSize || '1_mile'));
+                        const maxStations = currentGrid?.maxNewStations || 5;
+                        
+                        return Array.from({ length: maxStations }, (_, i) => i + 1).map(num => (
+                          <option key={num} value={num}>
+                            {num} New Station{num > 1 ? 's' : ''}
+                          </option>
+                        ));
+                      })()}
+                    </select>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Additional optimized stations (1 Engine + 1 Ambulance each)
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
           </div>
 
           <Separator />
@@ -811,6 +903,12 @@ export function ControlPanel({
                               onIncidentsChange?.(response.data);
                               console.log(`Loaded ${response.data.length} incidents manually`);
                               setIncidentLoadError(null);
+                              
+                              // Update the loaded incidents date range
+                              setLoadedIncidentsDateRange({
+                                startDate: startDate ? new Date(startDate) : null,
+                                endDate: endDate ? new Date(endDate) : null
+                              });
                             } else {
                               const errorMsg = response.message || 'Failed to load incidents';
                               setIncidentLoadError(errorMsg);

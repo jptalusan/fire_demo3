@@ -196,65 +196,6 @@ export function StatisticsTab({ simulationResults, stations = [], incidentsCount
         </Card>
       </div>
 
-      {/* Station Report Cards - Show only if simulation has run and we have station report data */}
-      {simulationResults && simulationResults.station_report && stationReports.length > 0 && (
-        <div className="space-y-4">
-          <div className="flex items-center gap-2">
-            <h2 className="text-lg font-semibold">Station Performance Report</h2>
-            <Badge variant="secondary">{stationReports.length} stations</Badge>
-            <Badge variant="outline" className="text-xs">From Simulation</Badge>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {stationReports
-              .sort((a, b) => parseFloat(a.stationName) - parseFloat(b.stationName))
-              .map((report) => {
-                const performance = getPerformanceStatus(report.travelTimeMean);
-                return (
-                  <Card key={report.stationName} className="hover:shadow-md transition-shadow">
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm">
-                        {report.stationName.padStart(2, '0')}
-                      </CardTitle>
-                      <TrendingUp className={`h-4 w-4 ${performance.color.replace('text-', 'text-')}`} />
-                    </CardHeader>
-                    <CardContent className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium">Avg Travel Time</span>
-                        <span className={`text-sm font-bold ${performance.color}`}>
-                          {formatTravelTime(report.travelTimeMean)}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium">Incidents Handled</span>
-                        <Badge variant="outline">{report.incidentCount}</Badge>
-                      </div>
-                      <div className="pt-1">
-                        <span className={`text-xs font-medium ${performance.color}`}>
-                          {performance.status}
-                        </span>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-          </div>
-        </div>
-      )}
-
-      {/* Message when no simulation has been run */}
-      {!simulationResults && (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-8">
-            <Clock className="h-12 w-12 text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">No Simulation Results</h3>
-            <p className="text-sm text-muted-foreground text-center">
-              Run a simulation to see detailed station performance statistics and travel time analysis.
-            </p>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Apparatus by Station Table */}
       <Card>
         <CardHeader>

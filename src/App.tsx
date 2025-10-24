@@ -31,6 +31,8 @@ export default function App() {
   const [stationApparatusCounts, setStationApparatusCounts] = useState<Map<string, ApparatusCounts>>(new Map());
   const [originalApparatusCounts, setOriginalApparatusCounts] = useState<Map<string, ApparatusCounts>>(new Map());
   const [selectedStationData, setSelectedStationData] = useState<string>(controlPanelConfig.stationData.default);
+  const [selectedGridSize, setSelectedGridSize] = useState<string>('1_mile');
+  const [selectedNewStations, setSelectedNewStations] = useState<number>(1);
   const [isControlPanelCollapsed, setIsControlPanelCollapsed] = useState(false);
   // New states for incident model and date range
   const [selectedIncidentModel, setSelectedIncidentModel] = useState<string>(controlPanelConfig.incidentModels.default);
@@ -177,6 +179,10 @@ export default function App() {
             originalApparatusCounts={originalApparatusCounts}
             selectedStationData={selectedStationData}
             onStationDataChange={setSelectedStationData}
+            selectedGridSize={selectedGridSize}
+            onGridSizeChange={setSelectedGridSize}
+            selectedNewStations={selectedNewStations}
+            onNewStationsChange={setSelectedNewStations}
             onStationsChange={setStations} // Pass the setter function
             selectedIncidentModel={selectedIncidentModel}
             onIncidentModelChange={setSelectedIncidentModel}
@@ -186,6 +192,7 @@ export default function App() {
             onEndDateChange={setEndDate}
             isCollapsed={isControlPanelCollapsed}
             onToggleCollapse={() => setIsControlPanelCollapsed(!isControlPanelCollapsed)}
+            incidentsCount={incidentsCount}
             onHistoricalIncidentStatsChange={handleHistoricalIncidentStatsChange}
             onHistoricalIncidentErrorChange={handleHistoricalIncidentErrorChange}
             onIncidentsChange={setIncidents}
@@ -205,6 +212,8 @@ export default function App() {
                   selectedDispatchPolicy={selectedDispatchPolicy} // Pass dispatch policy
                   selectedServiceZoneFile={selectedServiceZoneFile}
                   selectedStationData={selectedStationData}
+                  selectedGridSize={selectedGridSize}
+                  selectedNewStations={selectedNewStations}
                   stations={stations}
                   onStationsChange={setStations}
                   onApparatusChange={handleApparatusChange}
@@ -270,7 +279,7 @@ export default function App() {
 
                 {/* Simulation Results Tab */}
                 <TabsContent value="simulation" className="m-0 p-4 h-auto">
-                  <SimulationTab hasResults={hasResults} simulationResults={simulationResults} />
+                  <SimulationTab hasResults={hasResults} simulationResults={simulationResults} incidentsCount={incidentsCount} />
                 </TabsContent>
 
                 {/* Plots Tab */}

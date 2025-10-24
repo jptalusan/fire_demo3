@@ -21,6 +21,31 @@
         "grids": "custom_grid.geojson",
         "zones": "beats_shpfile_merged.geojson",
         "stations": "stations.csv"
+      },
+      {
+        "id": "optimized_stations",
+        "name": "Optimized with New Stations",
+        "source": "optimized",
+        "endpoint": null,
+        "description": "Existing stations plus optimized new station locations",
+        "zones": "beats_shpfile_merged.geojson",
+        "stations": "stations.csv",
+        "supportsGridSize": true,
+        "supportsNewStations": true,
+        "gridSizes": [
+          {
+            "id": "0.5_mile",
+            "name": "0.5 Mile Grid",
+            "maxNewStations": 5,
+            "grids": "dav_grids_05miles.geojson"
+          },
+          {
+            "id": "1_mile", 
+            "name": "1 Mile Grid",
+            "maxNewStations": 5,
+            "grids": "dav_grids_1miles.geojson"
+          }
+        ]
       }
     ]
   },
