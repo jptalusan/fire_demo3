@@ -165,9 +165,7 @@ class IncidentAPI {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          stationDataId,
-          dateRange,
-          parameters
+          dateRange
         })
       });
 
@@ -175,7 +173,30 @@ class IncidentAPI {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      return await response.json();
+      const contentType = response.headers.get('content-type');
+      
+      // Handle CSV response (successful generation)
+      if (contentType && contentType.includes('text/csv')) {
+        const csvContent = await response.text();
+        console.log('Generated incidents CSV:', csvContent.substring(0, 200) + '...');
+        
+        return {
+          status: 'success',
+          data: { csvContent },
+          message: 'Incidents generated successfully'
+        };
+      }
+      
+      // Handle JSON response (error cases)
+      const jsonResponse = await response.json();
+      if (jsonResponse.status === 'error') {
+        return {
+          status: 'error',
+          message: jsonResponse.error || jsonResponse.message || 'Unknown error'
+        };
+      }
+      
+      return jsonResponse;
     } catch (error) {
       console.error('Error generating incidents:', error);
       return {

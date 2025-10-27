@@ -23,7 +23,7 @@ export function BoxPlotChart({ data, width = "100%", height = 500, yAxisLabel = 
   const [tooltip, setTooltip] = useState<{ x: number; y: number; data: BoxPlotData } | null>(null);
 
   // Calculate chart dimensions based on data
-  const margin = { top: 20, right: 60, bottom: 60, left: 60 };
+  const margin = { top: 10, right: 60, bottom: 40, left: 60 };
   const boxWidth = 60;
   const spacing = 20;
   const minWidth = data.length * (boxWidth + spacing) + margin.left + margin.right;
@@ -39,7 +39,7 @@ export function BoxPlotChart({ data, width = "100%", height = 500, yAxisLabel = 
   const whiskerWidth = 20;
 
   return (
-    <div className="w-full h-[500px] overflow-hidden relative">
+    <div className="w-full h-full overflow-hidden relative">
       <svg
         width="100%"
         height={height}
@@ -68,8 +68,8 @@ export function BoxPlotChart({ data, width = "100%", height = 500, yAxisLabel = 
         </text>
         
         {/* X-axis label */}
-        <text x={chartWidth / 2} y={height - 15} textAnchor="middle" 
-              fontSize="16" fill="#666" fontWeight="600">
+        <text x={chartWidth / 2} y={height - 5} textAnchor="middle" 
+              fontSize="14" fill="#666" fontWeight="600">
           Stations
         </text>
         
@@ -151,7 +151,7 @@ export function BoxPlotChart({ data, width = "100%", height = 500, yAxisLabel = 
               <line x1={x - whiskerWidth/2} y1={minY} x2={x + whiskerWidth/2} y2={minY} stroke={isHovered ? "#2196F3" : "#333"} strokeWidth={isHovered ? "3" : "2"}/>
               
               {/* Station label */}
-              <text x={x} y={height - margin.bottom + 20} textAnchor="middle" fontSize={isHovered ? "14" : "12"} fill={isHovered ? "#1976D2" : "#666"} fontWeight={isHovered ? "600" : "500"}>
+              <text x={x} y={height - margin.bottom + 15} textAnchor="middle" fontSize={isHovered ? "12" : "10"} fill={isHovered ? "#1976D2" : "#666"} fontWeight={isHovered ? "600" : "500"}>
                 {item.stationName.startsWith('station_') 
                   ? `Station ${item.stationName.replace('station_', '')}`
                   : item.stationName.replace('Station ', '')

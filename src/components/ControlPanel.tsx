@@ -126,6 +126,14 @@ export function ControlPanel({
     }
   }, [selectedDispatchPolicy]);
 
+  // Automatically switch away from firebeats when optimized stations are selected
+  useEffect(() => {
+    if (selectedStationData === 'optimized_stations' && selectedDispatchPolicy === 'firebeats') {
+      // Switch to nearest available policy (default)
+      onDispatchPolicyChange?.('nearest');
+    }
+  }, [selectedStationData, selectedDispatchPolicy, onDispatchPolicyChange]);
+
   // Helper function to check if current date range matches loaded incidents date range
   const isDateRangeMatching = () => {
     // If no date range is selected, consider it matching (for models that don't use date ranges)
@@ -157,11 +165,6 @@ export function ControlPanel({
     // Check if the loaded incidents match the current date range
     const dateRangeMatches = isDateRangeMatching();
     
-    // If firebeats policy is selected, also check service zone file
-    if (selectedDispatchPolicy === 'firebeats') {
-      return allFieldsSelected && incidentsLoaded && dateRangeMatches && selectedServiceZoneFile && selectedServiceZoneFile.trim() !== '';
-    }
-    
     return allFieldsSelected && incidentsLoaded && dateRangeMatches;
   };
 
@@ -178,9 +181,6 @@ export function ControlPanel({
     if (!selectedTravelTimeModel) missing.push('Travel Time Model');
     if (!selectedServiceTimeModel) missing.push('Service Time Model');
     if (!selectedDispatchPolicy) missing.push('Dispatch Policy');
-    if (selectedDispatchPolicy === 'firebeats' && !selectedServiceZoneFile) {
-      missing.push('Service Zones');
-    }
     return missing;
   };
 
@@ -232,29 +232,7 @@ export function ControlPanel({
     fetchStationFiles();
   }, []);
 
-  useEffect(() => {
-    const fetchServiceZoneFiles = async () => {
-      try {
-        // For now, use the same endpoint as stations - you may need to create a separate endpoint
-        const response = await fetch(
-          `http://localhost:9999/get-shapes`
-        ); // This might need to be changed to a service zones endpoint
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const data = await response.json();
-        const zones = handleApiResponse(data, 'shapes'); // This might need to be 'zones' or similar
-        setServiceZoneFiles(zones);
-      } catch (error) {
-        console.error('Error fetching service zone files:', error);
-      }
-    };
 
-    // Only fetch service zone files if firebeats policy is selected
-    if (selectedDispatchPolicy === 'firebeats') {
-      fetchServiceZoneFiles();
-    }
-  }, [selectedDispatchPolicy]);
 
   // Process historical incidents when model changes to historical_incidents
   // Note: Historical incident processing is now handled by the manual "Load Incidents" button
@@ -357,8 +335,7 @@ export function ControlPanel({
       }
     };
 
-    processSyntheticIncidents();
-  }, [selectedIncidentModel, startDate, endDate, onHistoricalIncidentStatsChange, onHistoricalIncidentErrorChange]);
+  }, [selectedIncidentModel]);
 
   // Helper function to parse CSV into incident objects for the map
   const parseCSVToIncidents = (csvData: string) => {
@@ -887,32 +864,88 @@ export function ControlPanel({
                             // Import the API instance
                             const { incidentAPI } = await import('../services/incidentAPI');
                             
-                            // Call the API with current parameters
-                            const response = await incidentAPI.getIncidents(
-                              selectedIncidentModel!,
-                              {
-                                dateRange: {
-                                  start: startDate.toISOString().split('T')[0],
-                                  end: endDate.toISOString().split('T')[0]
-                                }
-                              }
-                            );
-                            
-                            // Update the incidents via the callback if successful
-                            if (response.status === 'success' && response.data) {
-                              onIncidentsChange?.(response.data);
-                              console.log(`Loaded ${response.data.length} incidents manually`);
-                              setIncidentLoadError(null);
+                            // Check if synthetic incidents are selected
+                            if (selectedIncidentModel === 'synthetic_incidents') {
+                              // Generate synthetic incidents
+                              console.log('Generating synthetic incidents for date range:', startDate, 'to', endDate);
                               
-                              // Update the loaded incidents date range
-                              setLoadedIncidentsDateRange({
-                                startDate: startDate ? new Date(startDate) : null,
-                                endDate: endDate ? new Date(endDate) : null
-                              });
+                              // Step 1: Generate incidents using the API service
+                              const generateResponse = await incidentAPI.generateIncidents(
+                                selectedStationData || 'default_stations',
+                                {
+                                  start: startDate.toISOString(),
+                                  end: endDate.toISOString()
+                                },
+                                {} // Additional parameters can be added here
+                              );
+
+                              if (generateResponse.status !== 'success') {
+                                throw new Error(`Backend failed to generate incidents: ${generateResponse.message}`);
+                              }
+
+                              console.log('Synthetic incidents generated successfully:', generateResponse.data);
+
+                              // Step 2: Parse the generated CSV content directly
+                              if (generateResponse.data && generateResponse.data.csvContent) {
+                                const csvContent = generateResponse.data.csvContent;
+                                
+                                // Parse CSV into incidents array using the existing helper
+                                const incidents = parseCSVToIncidents(csvContent);
+                                
+                                if (incidents.length > 0) {
+                                  onIncidentsChange?.(incidents);
+                                  console.log(`Loaded ${incidents.length} synthetic incidents manually`);
+                                  setIncidentLoadError(null);
+                                  
+                                  // Update the loaded incidents date range
+                                  setLoadedIncidentsDateRange({
+                                    startDate: startDate ? new Date(startDate) : null,
+                                    endDate: endDate ? new Date(endDate) : null
+                                  });
+                                  
+                                  // Create simple stats from the generated incidents
+                                  const stats = {
+                                    total: incidents.length,
+                                    dateRange: {
+                                      start: startDate.toISOString().split('T')[0],
+                                      end: endDate.toISOString().split('T')[0]
+                                    }
+                                  };
+                                  onHistoricalIncidentStatsChange?.(stats);
+                                } else {
+                                  throw new Error('No incidents were generated');
+                                }
+                              } else {
+                                throw new Error('No CSV content received from generation');
+                              }
                             } else {
-                              const errorMsg = response.message || 'Failed to load incidents';
-                              setIncidentLoadError(errorMsg);
-                              console.error('API call failed:', errorMsg);
+                              // Load historical incidents (existing logic)
+                              const response = await incidentAPI.getIncidents(
+                                selectedIncidentModel!,
+                                {
+                                  dateRange: {
+                                    start: startDate.toISOString().split('T')[0],
+                                    end: endDate.toISOString().split('T')[0]
+                                  }
+                                }
+                              );
+                              
+                              // Update the incidents via the callback if successful
+                              if (response.status === 'success' && response.data) {
+                                onIncidentsChange?.(response.data);
+                                console.log(`Loaded ${response.data.length} historical incidents manually`);
+                                setIncidentLoadError(null);
+                                
+                                // Update the loaded incidents date range
+                                setLoadedIncidentsDateRange({
+                                  startDate: startDate ? new Date(startDate) : null,
+                                  endDate: endDate ? new Date(endDate) : null
+                                });
+                              } else {
+                                const errorMsg = response.message || 'Failed to load incidents';
+                                setIncidentLoadError(errorMsg);
+                                console.error('API call failed:', errorMsg);
+                              }
                             }
                           } catch (error) {
                             const errorMsg = error instanceof Error ? error.message : 'Unknown error occurred';
@@ -930,7 +963,7 @@ export function ControlPanel({
                             Loading...
                           </>
                         ) : (
-                          'Load Incidents'
+                          selectedIncidentModel === 'synthetic_incidents' ? 'Generate Incidents' : 'Load Incidents'
                         )}
                       </Button>
                     )}
@@ -1009,11 +1042,22 @@ export function ControlPanel({
                   style={{ color: selectedDispatchPolicy ? '#111827' : '#9CA3AF' }}
                 >
                   <option value="" disabled className="text-gray-400">Select dispatch policy</option>
-                  {controlPanelConfig.dispatchPolicies.options.map((policy) => (
-                    <option key={policy.id} value={policy.id}>
-                      {policy.name}
-                    </option>
-                  ))}
+                  {controlPanelConfig.dispatchPolicies.options.map((policy) => {
+                    const isFirebeats = policy.id === 'firebeats';
+                    const isOptimizedStations = selectedStationData === 'optimized_stations';
+                    const isDisabled = isFirebeats && isOptimizedStations;
+                    
+                    return (
+                      <option 
+                        key={policy.id} 
+                        value={policy.id}
+                        disabled={isDisabled}
+                        className={isDisabled ? 'text-gray-400' : ''}
+                      >
+                        {policy.name}{isDisabled ? ' (Not available for optimized stations)' : ''}
+                      </option>
+                    );
+                  })}
                 </select>
                 <p className="text-xs text-gray-500 mt-1">
                   {selectedDispatchPolicy 
@@ -1024,31 +1068,7 @@ export function ControlPanel({
               </div>
             </div>
 
-            {/* Service Zones Data - Only show when Firebeats policy is selected */}
-            {selectedDispatchPolicy === 'firebeats' && (
-              <div>
-                <Label>Service Zones Data</Label>
-                <div className="mt-2">
-                  <select
-                    value={selectedServiceZoneFile || ''}
-                    onChange={(e) => onServiceZoneFileChange?.(e.target.value)}
-                    className="w-full p-2 border rounded text-gray-400"
-                    style={{ color: selectedServiceZoneFile ? '#111827' : '#9CA3AF' }}
-                  >
-                    <option value="" disabled className="text-gray-400">Select service zones</option>
-                    {serviceZoneFiles?.length > 0 ? (
-                      serviceZoneFiles.map((file) => (
-                        <option key={file} value={file}>
-                          {file}
-                        </option>
-                      ))
-                    ) : (
-                      <option disabled>No files available</option>
-                    )}
-                  </select>
-                </div>
-              </div>
-            )}
+
           </div>
 
           <Separator />

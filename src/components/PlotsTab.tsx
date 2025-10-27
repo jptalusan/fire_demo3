@@ -107,13 +107,13 @@ export function PlotsTab({ simulationResults, historicalIncidentStats, incidents
   return (
     <div className="h-full overflow-auto space-y-4 p-4">
       {/* Travel Times Box Plot - Full Width */}
-              {/* Travel Times Box Plot - Full Width */}
+      {/* Travel Times Box Plot - Compact Layout */}
       <Card>
-        <CardHeader>
+        <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>Travel Time Distribution by Station</CardTitle>
-              <CardDescription>
+              <CardTitle className="text-lg">Travel Time Distribution by Station</CardTitle>
+              <CardDescription className="text-sm mt-1">
                 Distribution of travel times for different scenarios
               </CardDescription>
             </div>
@@ -136,11 +136,13 @@ export function PlotsTab({ simulationResults, historicalIncidentStats, incidents
             </Button>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-2 pb-2">
           {simulationResults && stationTravelTimes.length > 0 ? (
-            <BoxPlotChart data={stationTravelTimes} yAxisLabel="Travel Time (minutes)" />
+            <div className="w-full" style={{ height: '240px' }}>
+              <BoxPlotChart data={stationTravelTimes} yAxisLabel="Travel Time (minutes)" height={240} />
+            </div>
           ) : (
-            <div className="text-sm text-muted-foreground p-4 text-center">
+            <div className="text-sm text-muted-foreground py-4 text-center">
               Run a simulation to see travel time distribution.
             </div>
           )}
