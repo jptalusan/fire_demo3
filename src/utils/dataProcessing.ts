@@ -297,9 +297,10 @@ export function createStationPopup(station: ProcessedStation): string {
  * Creates detailed popup content for station markers with apparatus and delete option
  * @param station - Processed station object
  * @param onDelete - Callback function for delete action
+ * @param selectedStationData - Current station dataset to determine if delete should be enabled
  * @returns HTML string for the detailed popup
  */
-export function createDetailedStationPopup(station: ProcessedStation, onDelete?: () => void): string {
+export function createDetailedStationPopup(station: ProcessedStation, onDelete?: () => void, selectedStationData?: string): string {
   const apparatusList = station.apparatus.map(app => `<li style="margin: 2px 0;">${app}</li>`).join('');
   
   return `
@@ -335,6 +336,7 @@ export function createDetailedStationPopup(station: ProcessedStation, onDelete?:
         >
           🚒 Apparatus
         </button>
+        ${selectedStationData === 'custom_stations' ? `
         <button 
           id="delete-station-${station.id}" 
           onclick="console.log('Delete clicked for ${station.id}'); window.deleteStation && window.deleteStation('${station.id}')"
@@ -354,6 +356,7 @@ export function createDetailedStationPopup(station: ProcessedStation, onDelete?:
         >
           🗑️ Delete
         </button>
+        ` : ''}
         <button 
           onclick="this.closest('.leaflet-popup').querySelector('.leaflet-popup-close-button').click()"
           style="
@@ -382,7 +385,7 @@ export function createDetailedStationPopup(station: ProcessedStation, onDelete?:
  * @param station - The processed station object.
  * @returns HTML string for the popup.
  */
-export function createFirebeatsStationPopup(station: ProcessedStation): string {
+export function createFirebeatsStationPopup(station: ProcessedStation, selectedStationData?: string): string {
   const serviceZone = station.serviceZone || '';
 
   return `
@@ -447,6 +450,7 @@ export function createFirebeatsStationPopup(station: ProcessedStation): string {
         >
           Update
         </button>
+        ${selectedStationData === 'custom_stations' ? `
         <button 
           id="delete-station-${station.id}" 
           onclick="console.log('Delete clicked for ${station.id}'); window.deleteStation && window.deleteStation('${station.id}')"
@@ -466,6 +470,7 @@ export function createFirebeatsStationPopup(station: ProcessedStation): string {
         >
           🗑️ Delete
         </button>
+        ` : ''}
         <button 
           onclick="this.closest('.leaflet-popup-content-wrapper').parentNode.querySelector('.leaflet-popup-close-button').click()"
           style="

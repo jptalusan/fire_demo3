@@ -3,7 +3,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { categoryColors } from '../config/categoryColors';
 import { processStations, createDetailedStationPopup, createFirebeatsStationPopup, createStationIcon, ProcessedStation, processIncidents, createIncidentPopup, createIncidentIcon, ProcessedIncident, Apparatus } from '../utils/dataProcessing';
-import { createDraggableStationMarker, defaultDragHandlers, setupGlobalDeleteHandler } from '../utils/markerControl';
+import { createDraggableStationMarker, createStaticStationMarker, defaultDragHandlers, setupGlobalDeleteHandler } from '../utils/markerControl';
 import config from '../config/mapConfig.json';
 import controlPanelConfig from '../config/controlPanelConfig.json';
 
@@ -156,6 +156,7 @@ export function MapSection({
   const [showStations, setShowStations] = useState(true);
   const [showIncidents, setShowIncidents] = useState(true);
   const [currentStationData, setCurrentStationData] = useState<string>('');
+  const [isAddingStation, setIsAddingStation] = useState(false);
 
   // Caches and refs to avoid duplicate/network-heavy loads
   const jsonCacheRef = useRef<Map<string, any>>(new Map());
@@ -799,30 +800,86 @@ export function MapSection({
     };
   }, [handleServiceZoneUpdate, handleOpenApparatusManager]);
 
+  // Helper function to reassign station IDs dynamically (0 to totalStations-1)
+  const reassignStationIds = useCallback((stationsList: ProcessedStation[]) => {
+    return stationsList.map((station, index) => ({
+      ...station,
+      id: index.toString(), // Station ID becomes 0, 1, 2, 3, etc.
+      apparatus: station.apparatus.map(app => ({
+        ...app,
+        id: `${index}_${app.type.toLowerCase()}_${app.id.split('_').pop()}` // Update apparatus IDs to match new station ID
+      }))
+    }));
+  }, []);
 
   // Handle station deletion using useCallback to ensure we always have the latest state
   const handleStationDelete = useCallback((stationId: string) => {
     console.log(`Attempting to delete station with ID: ${stationId}`);
     
-    // Remove from stations array
+    // Remove from stations array and reassign IDs
     const filteredStations = stations.filter(station => station.id !== stationId);
     console.log(`Filtered stations count: ${filteredStations.length} (was ${stations.length})`);
-    onStationsChange(filteredStations);
     
-    // Remove from apparatus-related maps so stats update correctly
-    setStationApparatus(prev => {
-      const newMap = new Map(prev);
-      newMap.delete(stationId);
-      return newMap;
-    });
+    // Reassign IDs after deletion
+    const stationsWithNewIds = reassignStationIds(filteredStations);
+    onStationsChange(stationsWithNewIds);
+    
+    console.log('Updating apparatus data after station deletion...');
+    console.log('Stations before deletion:', stations.map(s => ({ id: s.id, name: s.name })));
+    console.log('Stations after deletion and ID reassignment:', stationsWithNewIds.map(s => ({ id: s.id, name: s.name })));
+
+    // Update apparatus counts for all stations with new IDs
     setStationApparatusCounts(prev => {
-      const newMap = new Map(prev);
-      newMap.delete(stationId);
+      const newMap = new Map();
+      console.log('Previous apparatus counts:', Array.from(prev.entries()));
+      
+      stationsWithNewIds.forEach((station, index) => {
+        // Find the original station before ID reassignment to preserve its apparatus counts
+        const originalStation = stations.find(s => 
+          s.name === station.name && 
+          s.displayName === station.displayName &&
+          Math.abs(s.lat - station.lat) < 0.000001 && 
+          Math.abs(s.lon - station.lon) < 0.000001
+        );
+        const apparatusCounts = originalStation ? prev.get(originalStation.id) || {} : {};
+        console.log(`Station ${station.name} (new ID: ${index}) - preserved apparatus:`, apparatusCounts);
+        newMap.set(index.toString(), apparatusCounts);
+      });
+      
+      console.log('New apparatus counts map:', Array.from(newMap.entries()));
       return newMap;
     });
+    
     setOriginalApparatusCounts(prev => {
-      const newMap = new Map(prev);
-      newMap.delete(stationId);
+      const newMap = new Map();
+      stationsWithNewIds.forEach((station, index) => {
+        // Find the original station before ID reassignment to preserve its apparatus counts
+        const originalStation = stations.find(s => 
+          s.name === station.name && 
+          s.displayName === station.displayName &&
+          Math.abs(s.lat - station.lat) < 0.000001 && 
+          Math.abs(s.lon - station.lon) < 0.000001
+        );
+        const apparatusCounts = originalStation ? prev.get(originalStation.id) || {} : {};
+        newMap.set(index.toString(), apparatusCounts);
+      });
+      return newMap;
+    });
+
+    // Update station apparatus map
+    setStationApparatus(prev => {
+      const newMap = new Map();
+      stationsWithNewIds.forEach((station, index) => {
+        // Find the original station before ID reassignment to preserve its apparatus
+        const originalStation = stations.find(s => 
+          s.name === station.name && 
+          s.displayName === station.displayName &&
+          Math.abs(s.lat - station.lat) < 0.000001 && 
+          Math.abs(s.lon - station.lon) < 0.000001
+        );
+        const apparatus = originalStation ? prev.get(originalStation.id) || [] : [];
+        newMap.set(index.toString(), apparatus);
+      });
       return newMap;
     });
     
@@ -847,7 +904,107 @@ export function MapSection({
     }
     
     console.log(`Successfully deleted station with ID: ${stationId}`);
-  }, [stations, stationMarkers, markerLayer, onStationsChange]);
+  }, [stations, stationMarkers, markerLayer, onStationsChange, reassignStationIds]);
+
+  // Handle adding a new station at the clicked location
+  const handleAddNewStation = useCallback((lat: number, lng: number) => {
+    if (selectedStationData !== 'custom_stations') {
+      console.log('Add station only available for custom stations');
+      return;
+    }
+
+    // Find the highest existing station number from all stations for naming purposes
+    const existingStationNumbers = stations
+      .map(station => {
+        // Extract number from station names like "Station 1", "Station 2", etc.
+        const match = station.name.match(/Station (\d+)/i) || station.displayName.match(/Station (\d+)/i);
+        return match ? parseInt(match[1], 10) : 0;
+      })
+      .filter(num => !isNaN(num));
+    
+    const maxStationNumber = existingStationNumbers.length > 0 ? Math.max(...existingStationNumbers) : 0;
+    const newStationNumber = maxStationNumber + 1;
+    
+    // Create new station object with temporary ID (will be reassigned)
+    const newStation: ProcessedStation = {
+      id: 'temp', // Temporary ID, will be reassigned by reassignStationIds
+      name: `Station ${newStationNumber}`,
+      displayName: `Station ${newStationNumber}`,
+      lat: lat,
+      lon: lng,
+      address: `${lat.toFixed(6)}, ${lng.toFixed(6)}`,
+      serviceZone: 'Custom',
+      stationNumber: newStationNumber,
+      apparatus: [
+        {
+          id: `temp_engine_1`,
+          type: 'Engine',
+          name: `Engine ${newStationNumber}`,
+          status: 'Available',
+          crew: 4
+        },
+        {
+          id: `temp_ambulance_1`,
+          type: 'Ambulance',
+          name: `Ambulance ${newStationNumber}`,
+          status: 'Available',
+          crew: 2
+        }
+      ]
+    };
+
+    // Add to stations array and reassign all IDs
+    const updatedStations = [...stations, newStation];
+    const stationsWithNewIds = reassignStationIds(updatedStations);
+    onStationsChange(stationsWithNewIds);
+
+    // Set default apparatus for the new station (will have the last ID after reassignment)
+    const newStationFinalId = (updatedStations.length - 1).toString();
+    const defaultApparatusCounts: ApparatusCounts = {
+      Engine_ID: 1,
+      Truck: 0,
+      Rescue: 0,
+      Hazard: 0,
+      Squad: 0,
+      FAST: 0,
+      Medic: 1,
+      Brush: 0,
+      Boat: 0,
+      UTV: 0,
+      REACH: 0,
+      Chief: 0
+    };
+
+    // Update apparatus counts for all stations with new IDs
+    setStationApparatusCounts(prev => {
+      const newMap = new Map();
+      // Reassign all existing apparatus counts to new IDs
+      stationsWithNewIds.forEach((station, index) => {
+        const oldApparatusCounts = index < stations.length 
+          ? prev.get(stations[index].id) || {}
+          : defaultApparatusCounts; // Use default for the new station
+        newMap.set(index.toString(), index === stationsWithNewIds.length - 1 ? defaultApparatusCounts : oldApparatusCounts);
+      });
+      return newMap;
+    });
+
+    setOriginalApparatusCounts(prev => {
+      const newMap = new Map();
+      // Reassign all existing original apparatus counts to new IDs
+      stationsWithNewIds.forEach((station, index) => {
+        const oldApparatusCounts = index < stations.length 
+          ? prev.get(stations[index].id) || {}
+          : { ...defaultApparatusCounts }; // Use default for the new station
+        newMap.set(index.toString(), index === stationsWithNewIds.length - 1 ? { ...defaultApparatusCounts } : oldApparatusCounts);
+      });
+      return newMap;
+    });
+
+    console.log(`Created new station: ${newStation.name} at ${lat}, ${lng} with default apparatus`);
+    
+    // Exit add station mode
+    setIsAddingStation(false);
+  }, [selectedStationData, stations, onStationsChange, reassignStationIds]);
 
   // Stabilize global delete handler: register once and reference latest via ref
   const deleteHandlerRef = useRef(handleStationDelete);
@@ -1095,6 +1252,44 @@ export function MapSection({
     };
   }, []);
 
+  // Update map click handler when add station mode changes
+  useEffect(() => {
+    if (!mapInstance) return;
+
+    // Remove existing click handlers
+    mapInstance.off('click');
+
+    // Add click handler for adding new stations
+    mapInstance.on('click', (e: L.LeafletMouseEvent) => {
+      if (isAddingStation && selectedStationData === 'custom_stations') {
+        handleAddNewStation(e.latlng.lat, e.latlng.lng);
+      }
+    });
+
+    return () => {
+      mapInstance.off('click');
+    };
+  }, [mapInstance, isAddingStation, selectedStationData, handleAddNewStation]);
+
+  // Automatically disable add station mode when switching away from custom stations
+  useEffect(() => {
+    if (selectedStationData !== 'custom_stations' && isAddingStation) {
+      setIsAddingStation(false);
+    }
+  }, [selectedStationData, isAddingStation]);
+
+  // Update map cursor style when add station mode changes
+  useEffect(() => {
+    const mapElement = document.getElementById('map');
+    if (mapElement) {
+      if (isAddingStation && selectedStationData === 'custom_stations') {
+        mapElement.style.cursor = 'crosshair';
+      } else {
+        mapElement.style.cursor = '';
+      }
+    }
+  }, [isAddingStation, selectedStationData]);
+
   useEffect(() => {
     if (!mapInstance) return;
 
@@ -1135,26 +1330,36 @@ export function MapSection({
           stations.forEach(station => {
           const iconHtml = createStationIcon(station);
           
-          // Create custom drag handlers that update the shared state
-          const customDragHandlers = {
-            ...defaultDragHandlers,
-            onStationUpdate: (updatedStation: ProcessedStation) => {
-              // Update the shared state - marker position is already updated by Leaflet
-              const updatedStations = stations.map(s => 
-                s.id === updatedStation.id ? updatedStation : s
-              );
-              onStationsChange(updatedStations);
-            }
-          };
+          // Determine if stations should be draggable based on selected station data
+          const isDraggable = selectedStationData === 'custom_stations';
           
-          const marker = createDraggableStationMarker(station, iconHtml, customDragHandlers);
+          let marker: L.Marker;
+          
+          if (isDraggable) {
+            // Create custom drag handlers that update the shared state
+            const customDragHandlers = {
+              ...defaultDragHandlers,
+              onStationUpdate: (updatedStation: ProcessedStation) => {
+                // Update the shared state - marker position is already updated by Leaflet
+                const updatedStations = stations.map(s => 
+                  s.id === updatedStation.id ? updatedStation : s
+                );
+                onStationsChange(updatedStations);
+              }
+            };
+            
+            marker = createDraggableStationMarker(station, iconHtml, customDragHandlers);
+          } else {
+            // Create static (non-draggable) marker for default stations
+            marker = createStaticStationMarker(station, iconHtml);
+          }
 
           marker.addTo(markerLayer);
           
           // Bind the correct popup based on dispatch policy
           const popupContent = selectedDispatchPolicy === 'firebeats'
-            ? createFirebeatsStationPopup(station)
-            : createDetailedStationPopup(station);
+            ? createFirebeatsStationPopup(station, selectedStationData)
+            : createDetailedStationPopup(station, undefined, selectedStationData);
           
           marker.bindPopup(popupContent);
 
@@ -1162,8 +1367,8 @@ export function MapSection({
           marker.on('popupopen', () => {
             const freshStationData = stations.find(s => s.id === station.id) || station;
             const freshPopupContent = selectedDispatchPolicy === 'firebeats'
-              ? createFirebeatsStationPopup(freshStationData)
-              : createDetailedStationPopup(freshStationData);
+              ? createFirebeatsStationPopup(freshStationData, selectedStationData)
+              : createDetailedStationPopup(freshStationData, undefined, selectedStationData);
             marker.setPopupContent(freshPopupContent);
 
             // Auto-open apparatus manager sidebar when popup opens
@@ -1192,7 +1397,10 @@ export function MapSection({
   return (
     <div className="h-full w-full bg-white relative">
       {/* Leaflet map container */}
-      <div id="map" className="h-full w-full absolute inset-0" />
+      <div 
+        id="map" 
+        className="h-full w-full absolute inset-0"
+      />
       
       {/* Loading Overlay */}
       {(isLoadingIncidents || isLoadingStations) && (
@@ -1207,6 +1415,18 @@ export function MapSection({
                 : 'Loading stations...'
               }
             </span>
+          </div>
+        </div>
+      )}
+
+      {/* Add Station Mode Indicator */}
+      {isAddingStation && selectedStationData === 'custom_stations' && (
+        <div className="absolute top-20 left-1/2 transform -translate-x-1/2 bg-green-100 border border-green-500 rounded-lg px-4 py-2 shadow-lg" style={{zIndex: 10000}}>
+          <div className="text-green-800 font-medium text-sm">
+            📍 Click anywhere on the map to add a new station
+          </div>
+          <div className="text-green-600 text-xs mt-1">
+            New stations come with 1 Engine + 1 Ambulance
           </div>
         </div>
       )}
@@ -1238,6 +1458,20 @@ export function MapSection({
           <span className="text-sm text-gray-700">Incidents</span>
           <div className="w-3 h-3 bg-yellow-400 border-2 border-black rounded-full"></div>
         </label>
+
+        {/* Add Station Mode Toggle - Only show for custom stations */}
+        {selectedStationData === 'custom_stations' && (
+          <label className="flex items-center space-x-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={isAddingStation}
+              onChange={(e) => setIsAddingStation(e.target.checked)}
+              className="form-checkbox h-4 w-4 text-green-600"
+            />
+            <span className="text-sm text-gray-700">Add Station Mode</span>
+            <div className="w-3 h-3 bg-green-500 border border-green-600 rounded-sm"></div>
+          </label>
+        )}
         
         {gridsUrlRef.current && (
           <label className="flex items-center space-x-2 cursor-pointer">

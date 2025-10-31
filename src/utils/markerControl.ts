@@ -60,6 +60,29 @@ export function makeDraggableMarker(
 }
 
 /**
+ * Creates a non-draggable station marker for default/read-only stations
+ * @param station - The station data
+ * @param iconHtml - The HTML content for the marker icon
+ * @returns A configured non-draggable marker
+ */
+export function createStaticStationMarker(
+  station: ProcessedStation,
+  iconHtml: string
+): L.Marker {
+  const marker = L.marker([station.lat, station.lon], {
+    icon: L.divIcon({
+      className: 'custom-marker station-marker static-marker',
+      html: iconHtml,
+      iconSize: [32, 32],
+      iconAnchor: [16, 16]
+    }),
+    draggable: false // Explicitly disable dragging
+  });
+
+  return marker;
+}
+
+/**
  * Creates a draggable station marker with custom styling for draggable state
  * @param station - The station data
  * @param iconHtml - The HTML content for the marker icon

@@ -203,6 +203,16 @@ html {
   transform: scale(0.95);
 }
 
+/* Custom styles for static (non-draggable) markers */
+.custom-marker.static-marker {
+  cursor: pointer;
+  opacity: 0.9;
+}
+
+.custom-marker.static-marker:hover {
+  opacity: 1;
+}
+
 /* Ensure draggable markers have proper z-index when being dragged */
 .leaflet-marker-draggable .custom-marker {
   cursor: grab;
