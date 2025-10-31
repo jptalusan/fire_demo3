@@ -31,7 +31,7 @@ export interface APIResponse<T> {
 }
 
 class IncidentAPI {
-  private baseURL = 'http://localhost:9999';
+  private baseURL = 'https://hobvmisap57/endpoint';
 
   /**
    * Get incidents from backend based on model and filters

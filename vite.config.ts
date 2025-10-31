@@ -58,5 +58,6 @@
     server: {
       port: 3001,
       open: true,
+      allowedHosts: ['hobvmisap57.nashville.org', 'hobvmisap57']
     },
   });

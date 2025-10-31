@@ -194,29 +194,63 @@ export function ControlPanel({
 
   useEffect(() => {
     const fetchIncidentFiles = async () => {
+      // 1. Create a new AbortController instance
+      const controller = new AbortController();
+      const signal = controller.signal;
+
+      // Define your desired timeout duration in milliseconds (e.g., 10 seconds)
+      const TIMEOUT_MS = 600000; 
+
+      // 2. Set a timer to abort the request after the timeout
+      const timeoutId = setTimeout(() => {
+        controller.abort();
+      }, TIMEOUT_MS);
+
       try {
         const response = await fetch(
-          `http://localhost:9999/get-incidents`
-        ); // Use backend URL from .env
+          `https://hobvmisap57/endpoint/get-incidents`,
+          { signal } // 3. Pass the signal to the fetch options
+        );
+
+        // 4. Clear the timeout if the request completes before the timer fires
+        clearTimeout(timeoutId); 
+
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
-        const data = await response.json(); // Parse the JSON response
-        const incidents = handleApiResponse(data, 'incidents'); // Extract 'incidents' from response
+        
+        const data = await response.json();
+        const incidents = handleApiResponse(data, 'incidents');
         setIncidentFiles(incidents);
+
       } catch (error) {
-        console.error('Error fetching incident files:', error);
+            // Use a type guard to safely check if the error is an object
+            // and has a 'name' property of type string.
+            if (
+              error instanceof Error && 
+              error.name === 'AbortError'
+            ) {
+              console.error('Fetch aborted due to timeout:', error);
+              // Add logic for timeout handling here (e.g., set a state flag)
+            } else {
+              // This handles all other errors (network issues, JSON parsing, etc.)
+              console.error('Error fetching incident files:', error);
+            }
       }
     };
 
-    fetchIncidentFiles();
+    fetchIncidentFiles(); 
+    // You may also want to return a cleanup function from useEffect 
+    // to abort the request if the component unmounts before it completes:
+    // return () => { controller.abort(); };
+
   }, []);
 
   useEffect(() => {
     const fetchStationFiles = async () => {
       try {
         const response = await fetch(
-          `http://localhost:9999/get-stations`
+          `https://hobvmisap57/endpoint/get-stations`
         ); // Fetch station files
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
@@ -558,11 +592,22 @@ export function ControlPanel({
   };
 
   const handleRunSimulation = async () => {
+    // Define the timeout duration (e.g., 120 seconds)
+    const TIMEOUT_MS = 12000000; 
+
+    // 1. Create a new AbortController instance
+    const controller = new AbortController();
+    const signal = controller.signal;
+
+    // 2. Set a timer to abort the request after the timeout
+    const timeoutId = setTimeout(() => {
+        controller.abort();
+    }, TIMEOUT_MS);
+
     try {
       setIsSimulating(true); // Disable the button and show loading state
-      
-      // Prepare the payload with current station positions and configuration
-      const payload = {
+
+    const payload = {
         // Input configurations
         stationData: selectedStationData,
         dateRange: {
@@ -585,19 +630,17 @@ export function ControlPanel({
         dispatchPolicy: selectedDispatchPolicy,
         
         stations: stations.map(station => {
-          // Use apparatus counts from the new system if available, otherwise fall back to old system
           const apparatusCounts = stationApparatusCounts.get(station.id);
           const apparatus = apparatusCounts 
             ? convertApparatusCountsToSimpleArray(apparatusCounts)
-            : []; // Fallback to empty array for simple format
-            
+            : []; 
           return {
             id: station.id,
             name: station.displayName,
             lat: station.lat,
-            lon: station.lon, // Changed from 'lng' to 'lon' to match CSV
+            lon: station.lon, 
             apparatus: apparatus,
-            serviceZone: station.serviceZone, // Include serviceZone in the payload
+            serviceZone: station.serviceZone, 
           };
         }),
         responseTime: parseInt(responseTime),
@@ -605,31 +648,35 @@ export function ControlPanel({
         options: {
           coverageAnalysis: true,
           responseTimeAnalysis: true,
-          resourceOptimization: false // Based on the checkbox state
+          resourceOptimization: false
         }
       };
-      
+        
       console.log('Sending simulation request with payload:', payload);
       
       // Start timing the API call
       const startTime = performance.now();
       
-      const response = await fetch('http://localhost:9999/run-simulation2', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload)
+      const response = await fetch('https://hobvmisap57/endpoint/run-simulation2', {
+          method: 'POST',
+          headers: {
+              'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
+          signal: signal // 3. Pass the AbortController signal to the fetch options
       });
       
+      // 4. Clear the timeout if the request completes successfully
+      clearTimeout(timeoutId); 
+
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+          throw new Error(`HTTP error! status: ${response.status}`);
       }
       const result = await response.json();
       
       // Calculate API call duration
       const endTime = performance.now();
-      const apiCallDuration = (endTime - startTime) / 1000; // Convert to seconds
+      const apiCallDuration = (endTime - startTime) / 1000; 
       
       // Add timing to the result
       result.api_call_duration = apiCallDuration;
@@ -639,18 +686,25 @@ export function ControlPanel({
 
       // Check if the status is success
       if (result.status === 'success') {
-        // Call the parent component's callback to enable the tabs
         if (onSimulationSuccess) {
-          onSimulationSuccess(result);
+            onSimulationSuccess(result);
         }
       }
     } catch (error) {
-      console.error('Error running simulation:', error);
+      // Use a type guard to safely check for the AbortError (timeout)
+      if (error instanceof Error && error.name === 'AbortError') {
+          console.error('Simulation request timed out after 60 seconds.');
+          alert('The simulation request timed out. The server took too long to respond.');
+      } else {
+          console.error('Error running simulation:', error);
+      }
     } finally {
+      // Ensure the timeout is cleared if the error wasn't an abort (e.g., network error)
+      clearTimeout(timeoutId); 
       setIsSimulating(false); // Re-enable the button
     }
   };
-
+  
   // Remove the enableTabs function as it's no longer needed
   // Tab enabling logic should be handled in the parent component
 
