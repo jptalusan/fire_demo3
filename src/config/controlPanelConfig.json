@@ -91,6 +91,14 @@
         "endpoint": null,
         "description": "Grid-based distance calculation",
         "formula": "|x2-x1| + |y2-y1|"
+      },
+      {
+        "id": "INTERPOLATED",
+        "name": "Historical Travel Time Interpolation",
+        "source": "interpolation",
+        "endpoint": null,
+        "description": "Distance-weighted interpolation based on historical service zone data",
+        "method": "spatial-temporal"
       }
     ]
   },
