@@ -149,6 +149,120 @@ export function PlotsTab({ simulationResults, historicalIncidentStats, incidents
         </CardContent>
       </Card>
 
+      {/* P90 Response Times by Station */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>P90 Response Times by Station</CardTitle>
+              <CardDescription>
+                90th percentile response times (minutes) - 90% of incidents are handled within this time
+              </CardDescription>
+            </div>
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={() => setFullscreenChart({
+                title: "P90 Response Times by Station",
+                content: simulationResults && simulationResults.station_report && stationReports.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={600}>
+                    <BarChart 
+                      data={stationReports
+                        .slice()
+                        .sort((a, b) => {
+                          const aNum = parseFloat(a.stationName.replace(/\D/g, '')) || 0;
+                          const bNum = parseFloat(b.stationName.replace(/\D/g, '')) || 0;
+                          return aNum - bNum;
+                        })
+                        .map((r) => {
+                          const match = r.stationName.match(/\d+/);
+                          const stationNum = match ? match[0] : r.stationName;
+                          return {
+                            station: stationNum,
+                            p90Time: Number((r.travelTimeP90 / 60).toFixed(2)),
+                            incidents: r.incidentCount,
+                          };
+                        })
+                      }
+                      margin={{ top: 20, right: 30, left: 20, bottom: 100 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis 
+                        dataKey="station" 
+                        interval={0} 
+                        angle={-45} 
+                        textAnchor="end" 
+                        height={100} 
+                        tickMargin={15}
+                        fontSize={11}
+                        label={{ value: 'Stations', position: 'insideBottom', offset: -5, style: { textAnchor: 'middle' } }}
+                      />
+                      <YAxis label={{ value: 'Response Time (minutes)', angle: -90, position: 'insideLeft' }} />
+                      <Tooltip formatter={(value: any) => [`${value} min`, 'P90 Time']} />
+                      <Bar dataKey="p90Time" fill="#82ca9d" name="P90 Time (min)" />
+                      <ReferenceLine y={targetMinutes} stroke="red" strokeDasharray="5 5" label={`Target ${targetMinutes}m`} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="text-sm text-muted-foreground p-4 text-center">
+                    Run a simulation to see P90 data.
+                  </div>
+                )
+              })}
+              className="hover:bg-gray-100"
+            >
+              <Maximize2 className="h-4 w-4" />
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {simulationResults && simulationResults.station_report && stationReports.length > 0 ? (
+            <ResponsiveContainer width="100%" height={450}>
+              <BarChart 
+                data={stationReports
+                  .slice()
+                  .sort((a, b) => {
+                    const aNum = parseFloat(a.stationName.replace(/\D/g, '')) || 0;
+                    const bNum = parseFloat(b.stationName.replace(/\D/g, '')) || 0;
+                    return aNum - bNum;
+                  })
+                  .map((r) => {
+                    const match = r.stationName.match(/\d+/);
+                    const stationNum = match ? match[0] : r.stationName;
+                    return {
+                      station: stationNum,
+                      p90Time: Number((r.travelTimeP90 / 60).toFixed(2)),
+                      incidents: r.incidentCount,
+                    };
+                  })
+                }
+                margin={{ top: 20, right: 30, left: 20, bottom: 100 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis 
+                  dataKey="station" 
+                  interval={0} 
+                  angle={-45} 
+                  textAnchor="end" 
+                  height={100} 
+                  tickMargin={15}
+                  fontSize={11}
+                  label={{ value: 'Stations', position: 'insideBottom', offset: -5, style: { textAnchor: 'middle' } }}
+                />
+                <YAxis label={{ value: 'Response Time (minutes)', angle: -90, position: 'insideLeft' }} />
+                <Tooltip formatter={(value: any) => [`${value} min`, 'P90 Time']} />
+                <Bar dataKey="p90Time" fill="#82ca9d" name="P90 Time (min)" />
+                <ReferenceLine y={targetMinutes} stroke="red" strokeDasharray="5 5" label={`Target ${targetMinutes}m`} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="text-sm text-muted-foreground p-4 text-center">
+              Run a simulation to see P90 data.
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Response Time and Incidents Charts - Full Width Layout */}
       <div className="space-y-4">
         {/* Response Time Chart (from actual simulation results) */}

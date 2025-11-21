@@ -1225,7 +1225,7 @@ export function MapSection({
 
     L.tileLayer(config.map.tileLayer.url, config.map.tileLayer.options).addTo(map);
 
-    console.log('Map initialized', map);
+    // console.log('Map initialized', map);
 
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(

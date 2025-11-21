@@ -33,6 +33,7 @@ export interface ProcessedIncident {
 export interface StationReport {
   stationName: string;
   travelTimeMean: number;
+  travelTimeP90: number;
   incidentCount: number;
 }
 
@@ -133,6 +134,7 @@ export function processStationReport(stationReportData: any[]): StationReport[] 
     return {
       stationName,
       travelTimeMean: metrics['travel time mean'] || 0,
+      travelTimeP90: metrics['travel time p90'] || 0,
       incidentCount: metrics['incident count'] || 0
     };
   }).filter(report => report.stationName && !isNaN(report.travelTimeMean));

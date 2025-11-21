@@ -135,7 +135,7 @@ export default function App() {
                 <Shield className="h-7 w-7 text-blue-600" />
               </div>
               <div>
-                <h1 className="text-xl">Fire Department Analytics Dashboard</h1>
+                <h1 className="text-xl">RESPOND</h1>
                 <p className="text-sm text-muted-foreground">
                   Visualization and optimization tool for fire station coverage and incident response
                 </p>

@@ -192,65 +192,66 @@ export function ControlPanel({
     return result;
   };
 
-  useEffect(() => {
-    const fetchIncidentFiles = async () => {
-      // 1. Create a new AbortController instance
-      const controller = new AbortController();
-      const signal = controller.signal;
+  // Removed automatic fetch on mount - incident files will be loaded only when needed
+  // useEffect(() => {
+  //   const fetchIncidentFiles = async () => {
+  //     // 1. Create a new AbortController instance
+  //     const controller = new AbortController();
+  //     const signal = controller.signal;
 
-      // Define your desired timeout duration in milliseconds (e.g., 10 seconds)
-      const TIMEOUT_MS = 600000; 
+  //     // Define your desired timeout duration in milliseconds (e.g., 10 seconds)
+  //     const TIMEOUT_MS = 600000; 
 
-      // 2. Set a timer to abort the request after the timeout
-      const timeoutId = setTimeout(() => {
-        controller.abort();
-      }, TIMEOUT_MS);
+  //     // 2. Set a timer to abort the request after the timeout
+  //     const timeoutId = setTimeout(() => {
+  //       controller.abort();
+  //     }, TIMEOUT_MS);
 
-      try {
-        const response = await fetch(
-          `https://hobvmisap57/endpoint/get-incidents`,
-          { signal } // 3. Pass the signal to the fetch options
-        );
+  //     try {
+  //       const response = await fetch(
+  //         `http://localhost:9999/get-incidents`,
+  //         { signal } // 3. Pass the signal to the fetch options
+  //       );
 
-        // 4. Clear the timeout if the request completes before the timer fires
-        clearTimeout(timeoutId); 
+  //       // 4. Clear the timeout if the request completes before the timer fires
+  //       clearTimeout(timeoutId); 
 
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
+  //       if (!response.ok) {
+  //         throw new Error(`HTTP error! status: ${response.status}`);
+  //       }
         
-        const data = await response.json();
-        const incidents = handleApiResponse(data, 'incidents');
-        setIncidentFiles(incidents);
+  //       const data = await response.json();
+  //       const incidents = handleApiResponse(data, 'incidents');
+  //       setIncidentFiles(incidents);
 
-      } catch (error) {
-            // Use a type guard to safely check if the error is an object
-            // and has a 'name' property of type string.
-            if (
-              error instanceof Error && 
-              error.name === 'AbortError'
-            ) {
-              console.error('Fetch aborted due to timeout:', error);
-              // Add logic for timeout handling here (e.g., set a state flag)
-            } else {
-              // This handles all other errors (network issues, JSON parsing, etc.)
-              console.error('Error fetching incident files:', error);
-            }
-      }
-    };
+  //     } catch (error) {
+  //           // Use a type guard to safely check if the error is an object
+  //           // and has a 'name' property of type string.
+  //           if (
+  //             error instanceof Error && 
+  //             error.name === 'AbortError'
+  //           ) {
+  //             console.error('Fetch aborted due to timeout:', error);
+  //             // Add logic for timeout handling here (e.g., set a state flag)
+  //           } else {
+  //             // This handles all other errors (network issues, JSON parsing, etc.)
+  //             console.error('Error fetching incident files:', error);
+  //           }
+  //     }
+  //   };
 
-    fetchIncidentFiles(); 
-    // You may also want to return a cleanup function from useEffect 
-    // to abort the request if the component unmounts before it completes:
-    // return () => { controller.abort(); };
+  //   fetchIncidentFiles(); 
+  //   // You may also want to return a cleanup function from useEffect 
+  //   // to abort the request if the component unmounts before it completes:
+  //   // return () => { controller.abort(); };
 
-  }, []);
+  // }, []);
 
   useEffect(() => {
     const fetchStationFiles = async () => {
       try {
         const response = await fetch(
-          `https://hobvmisap57/endpoint/get-stations`
+          `http://localhost:9999/get-stations`
         ); // Fetch station files
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
@@ -657,7 +658,7 @@ export function ControlPanel({
       // Start timing the API call
       const startTime = performance.now();
       
-      const response = await fetch('https://hobvmisap57/endpoint/run-simulation2', {
+      const response = await fetch('http://localhost:9999/run-simulation2', {
           method: 'POST',
           headers: {
               'Content-Type': 'application/json',

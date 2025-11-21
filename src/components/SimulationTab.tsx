@@ -37,7 +37,7 @@ export function SimulationTab({ hasResults, simulationResults, incidentsCount }:
       {hasResults ? (
         <div className="space-y-4">
           {/* KPI Cards moved from Statistics */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-4 gap-3">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5">
                 <CardTitle className="text-sm">Total Incidents</CardTitle>
@@ -55,7 +55,17 @@ export function SimulationTab({ hasResults, simulationResults, incidentsCount }:
               </CardHeader>
               <CardContent>
                 <div className="text-xl">{simulationResults?.average_response_time ? Number(simulationResults.average_response_time).toFixed(2) : '-'} sec</div>
-                <p className="text-[11px] text-green-600">Within target range</p>
+                <p className="text-[11px] text-green-600">Mean travel time</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5">
+                <CardTitle className="text-sm">P90 Response Time</CardTitle>
+                <Clock className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-xl">{simulationResults?.P90_continuous ? Number(simulationResults.P90_continuous).toFixed(2) : '-'} sec</div>
+                <p className="text-[11px] text-blue-600">90th percentile</p>
               </CardContent>
             </Card>
             <Card>
@@ -139,6 +149,12 @@ export function SimulationTab({ hasResults, simulationResults, incidentsCount }:
                             <span className="text-sm font-medium">Avg Travel Time</span>
                             <span className={`text-sm font-bold ${performance.color}`}>
                               {formatTravelTime(report.travelTimeMean)}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium">P90 Travel Time</span>
+                            <span className="text-sm font-bold text-blue-600">
+                              {formatTravelTime(report.travelTimeP90)}
                             </span>
                           </div>
                           <div className="flex items-center justify-between">
