@@ -56,6 +56,7 @@ interface MapSectionProps {
   endDate?: Date;
   onIncidentsCountChange?: (count: number) => void;
   onClearLayers?: () => void;
+  onMapInstanceChange?: (map: L.Map | null) => void;
 }
 
 interface FireStation {
@@ -93,7 +94,8 @@ export function MapSection({
   startDate,
   endDate,
   onIncidentsCountChange,
-  onClearLayers
+  onClearLayers,
+  onMapInstanceChange
 }: MapSectionProps) {
   const [incidents, setIncidents] = useState<ProcessedIncident[]>([]);
   const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
@@ -479,10 +481,11 @@ export function MapSection({
           weight: 2,
           opacity: 1,
           fillOpacity: 0.8,
+          interactive: false, // Make non-clickable for performance
           // @ts-ignore - Add custom property to identify incident markers
           isIncidentMarker: true
         });
-        marker.bindPopup(createIncidentPopup(incident));
+        // No popup binding for performance with thousands of markers
         marker.addTo(mapInstance);
       });
     }
@@ -967,7 +970,9 @@ export function MapSection({
 
   useEffect(() => {
     console.log('Initializing map');
-    const map = L.map('map').setView([config.map.defaultView.lat, config.map.defaultView.lng], config.map.defaultView.zoom);
+    const map = L.map('map', {
+      preferCanvas: true, // Use Canvas renderer for better performance with thousands of markers
+    }).setView([config.map.defaultView.lat, config.map.defaultView.lng], config.map.defaultView.zoom);
 
     L.tileLayer(config.map.tileLayer.url, config.map.tileLayer.options).addTo(map);
 
@@ -998,6 +1003,13 @@ export function MapSection({
     };
   }, []);
 
+  // Notify parent when map instance changes
+  useEffect(() => {
+    if (onMapInstanceChange) {
+      onMapInstanceChange(mapInstance);
+    }
+  }, [mapInstance, onMapInstanceChange]);
+
   useEffect(() => {
     if (!mapInstance) return;
 
@@ -1023,12 +1035,13 @@ export function MapSection({
               weight: 2,
               opacity: 1,
               fillOpacity: 0.8,
+              interactive: false, // Make non-clickable for performance
               // @ts-ignore - Add custom property to identify incident markers
               isIncidentMarker: true
             });
 
             marker.addTo(markerLayer);
-            marker.bindPopup(createIncidentPopup(incident));
+            // No popup binding for performance with thousands of markers
           });
         }
 

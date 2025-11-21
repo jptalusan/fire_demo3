@@ -32,6 +32,8 @@ export default function App() {
   const [originalApparatusCounts, setOriginalApparatusCounts] = useState<Map<string, ApparatusCounts>>(new Map());
   const [selectedStationData, setSelectedStationData] = useState<string>(controlPanelConfig.stationData.default);
   const [isControlPanelCollapsed, setIsControlPanelCollapsed] = useState(false);
+  const [isRightSidebarCollapsed, setIsRightSidebarCollapsed] = useState(false);
+  const [mapInstance, setMapInstance] = useState<any>(null);
   // New states for incident model and date range
   const [selectedIncidentModel, setSelectedIncidentModel] = useState<string>(controlPanelConfig.incidentModels.default);
   const [startDate, setStartDate] = useState<Date | undefined>(() => {
@@ -57,6 +59,16 @@ export default function App() {
   const handleHistoricalIncidentErrorChange = useCallback((error: string | null) => {
     setHistoricalIncidentError(error);
   }, []);
+
+  // Invalidate map size when sidebars are toggled
+  React.useEffect(() => {
+    if (mapInstance) {
+      // Use setTimeout to ensure layout has completed before invalidating
+      setTimeout(() => {
+        mapInstance.invalidateSize();
+      }, 350); // Slightly longer than the 300ms transition
+    }
+  }, [isControlPanelCollapsed, isRightSidebarCollapsed, mapInstance]);
 
   const handleSimulationSuccess = (result: any) => {
     console.log('Simulation success, enabling tabs...', result);
@@ -122,182 +134,245 @@ export default function App() {
   };
 
   return (
-  <div className="min-h-screen flex flex-col bg-background">
-      {/* Header */}
-      <header className="border-b bg-card flex-shrink-0">
-        <div className="px-6 py-3">
-          <div className="flex items-center justify-between">
-            {/* Left side - Title and Icons */}
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2">
-                <Flame className="h-7 w-7 text-red-600" />
-                <Shield className="h-7 w-7 text-blue-600" />
-              </div>
-              <div>
-                <h1 className="text-xl">Fire Department Analytics Dashboard</h1>
-                <p className="text-sm text-muted-foreground">
-                  Visualization and optimization tool for fire station coverage and incident response
-                </p>
-              </div>
-            </div>
-            
-            {/* Right side - Features */}
-            <div className="flex items-center gap-4 text-sm text-muted-foreground">
-              <div className="flex items-center gap-1">
-                <MapIcon className="h-4 w-4" />
-                <span>Interactive mapping and analysis</span>
-              </div>
-              <Separator orientation="vertical" className="h-4" />
-              <span>Real-time incident processing</span>
-              <Separator orientation="vertical" className="h-4" />
-              <span>Coverage optimization</span>
-            </div>
-          </div>
+    <div style={{ 
+      display: 'flex', 
+      flexDirection: 'column', 
+      height: '100vh', 
+      width: '100vw',
+      overflow: 'hidden',
+      backgroundColor: '#ffffff'
+    }}>
+      {/* Header - Fixed */}
+      <header style={{ 
+        flexShrink: 0, 
+        borderBottom: '1px solid #e5e7eb', 
+        padding: '1rem 1.5rem',
+        backgroundColor: '#ffffff'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <Flame style={{ width: '28px', height: '28px', color: '#dc2626' }} />
+          <Shield style={{ width: '28px', height: '28px', color: '#2563eb' }} />
+          <h1 style={{ fontSize: '1.25rem', fontWeight: '600' }}>Fire Department Analytics Dashboard</h1>
         </div>
       </header>
 
-  {/* Main Content */}
-  <div className="flex flex-1 max-h-[calc(100vh-120px)]">
-        {/* Control Panel - Collapsible */}
-        <div className="flex-shrink-0">
-          <ControlPanel 
-            onRunSimulation={handleRunSimulation}
-            selectedIncidentFile={selectedIncidentFile}
-            onIncidentFileChange={setSelectedIncidentFile}
-            onClearSettings={handleClearSettings}
-            onSimulationSuccess={handleSimulationSuccess}
-            selectedStationFile={selectedStationFile}
-            onStationFileChange={setSelectedStationFile}
+      {/* Main Content Row */}
+      <div style={{ 
+        display: 'flex', 
+        flex: '1 1 0%', 
+        minHeight: 0,
+        overflow: 'hidden'
+      }}>
+        {/* Sidebar Control Panel - MINIMAL TEST VERSION */}
+        <aside style={{
+          width: isControlPanelCollapsed ? '48px' : '320px',
+          display: 'flex',
+          flexDirection: 'column',
+          borderRight: '1px solid #e5e7eb',
+          backgroundColor: '#ffffff',
+          transition: 'width 0.3s'
+        }}>
+          {/* Sidebar Header */}
+          <div style={{ 
+            padding: isControlPanelCollapsed ? '0.5rem' : '0.1rem 0.5rem', 
+            borderBottom: isControlPanelCollapsed ? 'none' : '1px solid #e5e7eb',
+            flexShrink: 0,
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center'
+          }}>
+            <button
+              onClick={() => setIsControlPanelCollapsed(!isControlPanelCollapsed)}
+              style={{
+                padding: '0.5rem',
+                border: '1px solid #e5e7eb',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                backgroundColor: '#ffffff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              {isControlPanelCollapsed ? '→' : '←'}
+            </button>
+          </div>
+          
+          {/* Scrollable Content Area */}
+          {!isControlPanelCollapsed && (
+            <ControlPanel 
+              onRunSimulation={handleRunSimulation}
+              selectedIncidentFile={selectedIncidentFile}
+              onIncidentFileChange={setSelectedIncidentFile}
+              onClearSettings={handleClearSettings}
+              onSimulationSuccess={handleSimulationSuccess}
+              selectedStationFile={selectedStationFile}
+              onStationFileChange={setSelectedStationFile}
+              selectedDispatchPolicy={selectedDispatchPolicy}
+              onDispatchPolicyChange={setSelectedDispatchPolicy}
+              selectedServiceZoneFile={selectedServiceZoneFile}
+              onServiceZoneFileChange={setSelectedServiceZoneFile}
+              stations={stations}
+              stationApparatus={stationApparatus}
+              stationApparatusCounts={stationApparatusCounts}
+              originalApparatusCounts={originalApparatusCounts}
+              selectedStationData={selectedStationData}
+              onStationDataChange={setSelectedStationData}
+              onStationsChange={setStations}
+              selectedIncidentModel={selectedIncidentModel}
+              onIncidentModelChange={setSelectedIncidentModel}
+              startDate={startDate}
+              endDate={endDate}
+              onStartDateChange={setStartDate}
+              onEndDateChange={setEndDate}
+              isCollapsed={false}
+              onToggleCollapse={() => {}}
+              onHistoricalIncidentStatsChange={handleHistoricalIncidentStatsChange}
+              onHistoricalIncidentErrorChange={handleHistoricalIncidentErrorChange}
+            />
+          )}
+        </aside>
+
+        {/* Map Section */}
+        <div style={{ 
+          flex: isRightSidebarCollapsed ? '1 1 0%' : '1 1 50%',
+          overflow: 'hidden',
+          backgroundColor: '#f3f4f6',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minWidth: 0
+        }}>
+          <MapSection 
+            simulationResults={simulationResults} 
+            selectedIncidentFile={selectedIncidentFile} 
+            selectedStationFile={selectedStationFile} 
             selectedDispatchPolicy={selectedDispatchPolicy}
-            onDispatchPolicyChange={setSelectedDispatchPolicy}
             selectedServiceZoneFile={selectedServiceZoneFile}
-            onServiceZoneFileChange={setSelectedServiceZoneFile}
-            stations={stations}
-            stationApparatus={stationApparatus}
-            stationApparatusCounts={stationApparatusCounts}
-            originalApparatusCounts={originalApparatusCounts}
             selectedStationData={selectedStationData}
-            onStationDataChange={setSelectedStationData}
-            onStationsChange={setStations} // Pass the setter function
+            stations={stations}
+            onStationsChange={setStations}
+            onApparatusChange={handleApparatusChange}
+            stationApparatusCounts={stationApparatusCounts}
+            setStationApparatusCounts={setStationApparatusCounts}
+            originalApparatusCounts={originalApparatusCounts}
+            setOriginalApparatusCounts={setOriginalApparatusCounts}
             selectedIncidentModel={selectedIncidentModel}
-            onIncidentModelChange={setSelectedIncidentModel}
             startDate={startDate}
             endDate={endDate}
-            onStartDateChange={setStartDate}
-            onEndDateChange={setEndDate}
-            isCollapsed={isControlPanelCollapsed}
-            onToggleCollapse={() => setIsControlPanelCollapsed(!isControlPanelCollapsed)}
-            onHistoricalIncidentStatsChange={handleHistoricalIncidentStatsChange}
-            onHistoricalIncidentErrorChange={handleHistoricalIncidentErrorChange}
+            onIncidentsCountChange={setIncidentsCount}
+            onClearLayers={handleClearSettings}
+            onMapInstanceChange={setMapInstance}
           />
         </div>
 
-  {/* Main Content Area - Split Layout */}
-  <div className="flex flex-1 min-h-0">
-          {/* Left Side - Map (always visible) */}
-          <div className="flex-1 flex flex-col min-h-0">
-            <Card className="h-full border-0 rounded-none flex-1">
-              <CardContent className="p-0 h-full flex-1 overflow-hidden">
-                <MapSection 
-                  simulationResults={simulationResults} 
-                  selectedIncidentFile={selectedIncidentFile} 
-                  selectedStationFile={selectedStationFile} 
-                  selectedDispatchPolicy={selectedDispatchPolicy} // Pass dispatch policy
-                  selectedServiceZoneFile={selectedServiceZoneFile}
-                  selectedStationData={selectedStationData}
-                  stations={stations}
-                  onStationsChange={setStations}
-                  onApparatusChange={handleApparatusChange}
-                  stationApparatusCounts={stationApparatusCounts}
-                  setStationApparatusCounts={setStationApparatusCounts}
-                  originalApparatusCounts={originalApparatusCounts}
-                  setOriginalApparatusCounts={setOriginalApparatusCounts}
-                  selectedIncidentModel={selectedIncidentModel}
-                  startDate={startDate}
-                  endDate={endDate}
-                  onIncidentsCountChange={setIncidentsCount}
-                  onClearLayers={handleClearSettings}
-                />
-              </CardContent>
-            </Card>
+        {/* Right Sidebar - Analysis Tabs */}
+        <aside style={{
+          flex: isRightSidebarCollapsed ? '0 0 48px' : '1 1 50%',
+          display: 'flex',
+          flexDirection: 'column',
+          borderLeft: '1px solid #e5e7eb',
+          backgroundColor: '#ffffff',
+          transition: 'flex 0.3s',
+          minWidth: 0
+        }}>
+          {/* Sidebar Header */}
+          <div style={{ 
+            padding: isRightSidebarCollapsed ? '0.5rem' : '0.1rem 0.5rem', 
+            borderBottom: isRightSidebarCollapsed ? 'none' : '1px solid #e5e7eb',
+            flexShrink: 0,
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center'
+          }}>
+            <button
+              onClick={() => setIsRightSidebarCollapsed(!isRightSidebarCollapsed)}
+              style={{
+                padding: '0.5rem',
+                border: '1px solid #e5e7eb',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                backgroundColor: '#ffffff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              {isRightSidebarCollapsed ? '←' : '→'}
+            </button>
           </div>
+          
+          {/* Scrollable Content Area with Tabs */}
+          {!isRightSidebarCollapsed && (
+            <div style={{
+              flex: '1 1 0%',
+              overflowY: 'auto',
+              minHeight: 0,
+              display: 'flex',
+              flexDirection: 'column'
+            }}>
+              <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col h-full">
+                <div style={{ 
+                  flexShrink: 0, 
+                  borderBottom: '1px solid #e5e7eb',
+                  backgroundColor: '#f9fafb',
+                  padding: '0.5rem'
+                }}>
+                  <TabsList className="w-full bg-transparent">
+                    <TabsTrigger value="statistics" className="flex-1">
+                      Statistics
+                    </TabsTrigger>
+                    <TabsTrigger value="simulation" disabled={!hasResults} className="flex-1">
+                      Simulation
+                    </TabsTrigger>
+                    <TabsTrigger value="plots" disabled={!hasResults} className="flex-1">
+                      Plots
+                    </TabsTrigger>
+                  </TabsList>
+                </div>
 
-          {/* Right Side - Analysis Tabs */}
-          <div className="flex-1 flex flex-col min-h-0 max-h-screen">
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
-              <TabsList className="flex w-full justify-between bg-muted p-1 h-10 flex-shrink-0">
-                <TabsTrigger 
-                  value="statistics" 
-                  className="data-[state=active]:bg-background relative"
-                >
-                  <span className={activeTab === 'statistics' ? 'bg-white text-gray-800 px-4 py-1 rounded-full' : ''}>
-                    Statistics
-                  </span>
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="simulation" 
-                  disabled={!hasResults} 
-                  className={`data-[state=active]:bg-background relative ${!hasResults ? "opacity-50 cursor-not-allowed" : ""}`}
-                >
-                  <span className={activeTab === 'simulation' ? 'bg-white text-gray-800 px-4 py-1 rounded-full' : ''}>
-                    Simulation Results
-                  </span>
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="plots" 
-                  disabled={!hasResults} 
-                  className={`data-[state=active]:bg-background relative ${!hasResults ? "opacity-50 cursor-not-allowed" : ""}`}
-                >
-                  <span className={activeTab === 'plots' ? 'bg-white text-gray-800 px-4 py-1 rounded-full' : ''}>
-                    Plots
-                  </span>
-                </TabsTrigger>
-              </TabsList>
+                <div style={{ flex: '1 1 0%', overflowY: 'auto', minHeight: 0 }}>
+                  <TabsContent value="statistics" style={{ margin: 0, padding: '1rem', height: '100%' }}>
+                    <StatisticsTab 
+                      simulationResults={simulationResults} 
+                      stations={stations} 
+                      incidentsCount={incidentsCount}
+                      stationApparatusCounts={stationApparatusCounts}
+                      historicalIncidentStats={historicalIncidentStats}
+                      historicalIncidentError={historicalIncidentError}
+                    />
+                  </TabsContent>
 
-              <div className="flex-1 overflow-y-auto">
-                {/* Statistics Tab */}
-                <TabsContent value="statistics" className="m-0 p-4 h-auto">
-                  <StatisticsTab 
-                    simulationResults={simulationResults} 
-                    stations={stations} 
-                    incidentsCount={incidentsCount}
-                    stationApparatusCounts={stationApparatusCounts}
-                    historicalIncidentStats={historicalIncidentStats}
-                    historicalIncidentError={historicalIncidentError}
-                  />
-                </TabsContent>
+                  <TabsContent value="simulation" style={{ margin: 0, padding: '1rem', height: '100%' }}>
+                    <SimulationTab hasResults={hasResults} simulationResults={simulationResults} />
+                  </TabsContent>
 
-                {/* Simulation Results Tab */}
-                <TabsContent value="simulation" className="m-0 p-4 h-auto">
-                  <SimulationTab hasResults={hasResults} simulationResults={simulationResults} />
-                </TabsContent>
-
-                {/* Plots Tab */}
-                <TabsContent value="plots" className="m-0 p-4 h-auto">
-                  <PlotsTab simulationResults={simulationResults} />
-                </TabsContent>
-              </div>
-            </Tabs>
-          </div>
-        </div>
+                  <TabsContent value="plots" style={{ margin: 0, padding: '1rem', height: '100%' }}>
+                    <PlotsTab simulationResults={simulationResults} />
+                  </TabsContent>
+                </div>
+              </Tabs>
+            </div>
+          )}
+        </aside>
       </div>
 
       {/* Footer */}
-      <footer className="border-t bg-card px-6 py-3 flex-shrink-0">
-        <div className="flex items-center justify-between text-sm text-muted-foreground">
-          <div className="flex items-center gap-4">
-            <span>© 2025 Fire Department Analytics</span>
-            <Separator orientation="vertical" className="h-4" />
-            <span>Version 1.0</span>
-          </div>
-          <div className="flex items-center gap-4">
-            <span>Last updated: {new Date().toLocaleDateString()}</span>
-            <Separator orientation="vertical" className="h-4" />
-            <span className={`flex items-center gap-1 ${isSimulating ? 'text-yellow-600' : hasResults ? 'text-green-600' : 'text-muted-foreground'}`}>
-              <div className={`w-2 h-2 rounded-full ${isSimulating ? 'bg-yellow-600 animate-pulse' : hasResults ? 'bg-green-600' : 'bg-gray-400'}`}></div>
-              {isSimulating ? 'Processing...' : hasResults ? 'Analysis Complete' : 'Ready'}
-            </span>
-          </div>
+      <footer style={{ 
+        flexShrink: 0, 
+        borderTop: '1px solid #e5e7eb', 
+        padding: '0.75rem 1.5rem',
+        backgroundColor: '#ffffff',
+        display: 'flex',
+        justifyContent: 'space-between',
+        fontSize: '0.875rem',
+        color: '#6b7280'
+      }}>
+        <div>
+          <span>© 2025 Fire Department Analytics | Version 1.0</span>
+        </div>
+        <div>
+          <span>Last updated: {new Date().toLocaleDateString()} | Status: {isSimulating ? 'Processing...' : hasResults ? 'Complete' : 'Ready'}</span>
         </div>
       </footer>
     </div>
