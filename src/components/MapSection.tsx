@@ -56,6 +56,7 @@ interface MapSectionProps {
   endDate?: Date;
   onIncidentsCountChange?: (count: number) => void;
   onClearLayers?: () => void;
+  onMapInstanceChange?: (map: L.Map | null) => void;
 }
 
 interface FireStation {
@@ -93,7 +94,8 @@ export function MapSection({
   startDate,
   endDate,
   onIncidentsCountChange,
-  onClearLayers
+  onClearLayers,
+  onMapInstanceChange
 }: MapSectionProps) {
   const [incidents, setIncidents] = useState<ProcessedIncident[]>([]);
   const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
@@ -1000,6 +1002,13 @@ export function MapSection({
       map.remove();
     };
   }, []);
+
+  // Notify parent when map instance changes
+  useEffect(() => {
+    if (onMapInstanceChange) {
+      onMapInstanceChange(mapInstance);
+    }
+  }, [mapInstance, onMapInstanceChange]);
 
   useEffect(() => {
     if (!mapInstance) return;

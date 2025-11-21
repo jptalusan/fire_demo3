@@ -33,6 +33,7 @@ export default function App() {
   const [selectedStationData, setSelectedStationData] = useState<string>(controlPanelConfig.stationData.default);
   const [isControlPanelCollapsed, setIsControlPanelCollapsed] = useState(false);
   const [isRightSidebarCollapsed, setIsRightSidebarCollapsed] = useState(false);
+  const [mapInstance, setMapInstance] = useState<any>(null);
   // New states for incident model and date range
   const [selectedIncidentModel, setSelectedIncidentModel] = useState<string>(controlPanelConfig.incidentModels.default);
   const [startDate, setStartDate] = useState<Date | undefined>(() => {
@@ -58,6 +59,16 @@ export default function App() {
   const handleHistoricalIncidentErrorChange = useCallback((error: string | null) => {
     setHistoricalIncidentError(error);
   }, []);
+
+  // Invalidate map size when sidebars are toggled
+  React.useEffect(() => {
+    if (mapInstance) {
+      // Use setTimeout to ensure layout has completed before invalidating
+      setTimeout(() => {
+        mapInstance.invalidateSize();
+      }, 350); // Slightly longer than the 300ms transition
+    }
+  }, [isControlPanelCollapsed, isRightSidebarCollapsed, mapInstance]);
 
   const handleSimulationSuccess = (result: any) => {
     console.log('Simulation success, enabling tabs...', result);
@@ -224,12 +235,13 @@ export default function App() {
 
         {/* Map Section */}
         <div style={{ 
-          flex: '1 1 0%', 
+          flex: isRightSidebarCollapsed ? '1 1 0%' : '1 1 50%',
           overflow: 'hidden',
           backgroundColor: '#f3f4f6',
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'center'
+          justifyContent: 'center',
+          minWidth: 0
         }}>
           <MapSection 
             simulationResults={simulationResults} 
@@ -250,17 +262,19 @@ export default function App() {
             endDate={endDate}
             onIncidentsCountChange={setIncidentsCount}
             onClearLayers={handleClearSettings}
+            onMapInstanceChange={setMapInstance}
           />
         </div>
 
         {/* Right Sidebar - Analysis Tabs */}
         <aside style={{
-          width: isRightSidebarCollapsed ? '48px' : '50%',
+          flex: isRightSidebarCollapsed ? '0 0 48px' : '1 1 50%',
           display: 'flex',
           flexDirection: 'column',
           borderLeft: '1px solid #e5e7eb',
           backgroundColor: '#ffffff',
-          transition: 'width 0.3s'
+          transition: 'flex 0.3s',
+          minWidth: 0
         }}>
           {/* Sidebar Header */}
           <div style={{ 
