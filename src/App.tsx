@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from 'react';
+import { ControlPanel } from './components/ControlPanel';
 import { MapSection } from './components/MapSection';
 import { StatisticsTab } from './components/StatisticsTab';
 import { SimulationTab } from './components/SimulationTab';
@@ -31,6 +32,7 @@ export default function App() {
   const [originalApparatusCounts, setOriginalApparatusCounts] = useState<Map<string, ApparatusCounts>>(new Map());
   const [selectedStationData, setSelectedStationData] = useState<string>(controlPanelConfig.stationData.default);
   const [isControlPanelCollapsed, setIsControlPanelCollapsed] = useState(false);
+  const [isRightSidebarCollapsed, setIsRightSidebarCollapsed] = useState(false);
   // New states for incident model and date range
   const [selectedIncidentModel, setSelectedIncidentModel] = useState<string>(controlPanelConfig.incidentModels.default);
   const [startDate, setStartDate] = useState<Date | undefined>(() => {
@@ -161,7 +163,7 @@ export default function App() {
         }}>
           {/* Sidebar Header */}
           <div style={{ 
-            padding: isControlPanelCollapsed ? '1rem 0.5rem' : '1.5rem 1rem', 
+            padding: isControlPanelCollapsed ? '0.5rem' : '0.1rem 0.5rem', 
             borderBottom: isControlPanelCollapsed ? 'none' : '1px solid #e5e7eb',
             flexShrink: 0,
             display: 'flex',
@@ -187,27 +189,36 @@ export default function App() {
           
           {/* Scrollable Content Area */}
           {!isControlPanelCollapsed && (
-            <div style={{
-              flex: '1 1 0%',
-              overflowY: 'auto',
-              padding: '1rem',
-              minHeight: 0
-            }}>
-              <h3 style={{ fontSize: '1rem', fontWeight: '600', marginBottom: '1rem' }}>Control Panel</h3>
-              
-              {/* FILLER TEST CONTENT */}
-              {Array.from({ length: 50 }, (_, i) => (
-                <div key={i} style={{
-                  padding: '1rem',
-                  marginBottom: '0.5rem',
-                  border: '1px solid #e5e7eb',
-                  borderRadius: '4px',
-                  backgroundColor: i % 2 === 0 ? '#f9fafb' : '#ffffff'
-                }}>
-                  Filler Block {i + 1} - This is test content to force scrolling in the sidebar panel
-                </div>
-              ))}
-            </div>
+            <ControlPanel 
+              onRunSimulation={handleRunSimulation}
+              selectedIncidentFile={selectedIncidentFile}
+              onIncidentFileChange={setSelectedIncidentFile}
+              onClearSettings={handleClearSettings}
+              onSimulationSuccess={handleSimulationSuccess}
+              selectedStationFile={selectedStationFile}
+              onStationFileChange={setSelectedStationFile}
+              selectedDispatchPolicy={selectedDispatchPolicy}
+              onDispatchPolicyChange={setSelectedDispatchPolicy}
+              selectedServiceZoneFile={selectedServiceZoneFile}
+              onServiceZoneFileChange={setSelectedServiceZoneFile}
+              stations={stations}
+              stationApparatus={stationApparatus}
+              stationApparatusCounts={stationApparatusCounts}
+              originalApparatusCounts={originalApparatusCounts}
+              selectedStationData={selectedStationData}
+              onStationDataChange={setSelectedStationData}
+              onStationsChange={setStations}
+              selectedIncidentModel={selectedIncidentModel}
+              onIncidentModelChange={setSelectedIncidentModel}
+              startDate={startDate}
+              endDate={endDate}
+              onStartDateChange={setStartDate}
+              onEndDateChange={setEndDate}
+              isCollapsed={false}
+              onToggleCollapse={() => {}}
+              onHistoricalIncidentStatsChange={handleHistoricalIncidentStatsChange}
+              onHistoricalIncidentErrorChange={handleHistoricalIncidentErrorChange}
+            />
           )}
         </aside>
 
@@ -241,6 +252,95 @@ export default function App() {
             onClearLayers={handleClearSettings}
           />
         </div>
+
+        {/* Right Sidebar - Analysis Tabs */}
+        <aside style={{
+          width: isRightSidebarCollapsed ? '48px' : '50%',
+          display: 'flex',
+          flexDirection: 'column',
+          borderLeft: '1px solid #e5e7eb',
+          backgroundColor: '#ffffff',
+          transition: 'width 0.3s'
+        }}>
+          {/* Sidebar Header */}
+          <div style={{ 
+            padding: isRightSidebarCollapsed ? '0.5rem' : '0.1rem 0.5rem', 
+            borderBottom: isRightSidebarCollapsed ? 'none' : '1px solid #e5e7eb',
+            flexShrink: 0,
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center'
+          }}>
+            <button
+              onClick={() => setIsRightSidebarCollapsed(!isRightSidebarCollapsed)}
+              style={{
+                padding: '0.5rem',
+                border: '1px solid #e5e7eb',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                backgroundColor: '#ffffff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              {isRightSidebarCollapsed ? '←' : '→'}
+            </button>
+          </div>
+          
+          {/* Scrollable Content Area with Tabs */}
+          {!isRightSidebarCollapsed && (
+            <div style={{
+              flex: '1 1 0%',
+              overflowY: 'auto',
+              minHeight: 0,
+              display: 'flex',
+              flexDirection: 'column'
+            }}>
+              <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col h-full">
+                <div style={{ 
+                  flexShrink: 0, 
+                  borderBottom: '1px solid #e5e7eb',
+                  backgroundColor: '#f9fafb',
+                  padding: '0.5rem'
+                }}>
+                  <TabsList className="w-full bg-transparent">
+                    <TabsTrigger value="statistics" className="flex-1">
+                      Statistics
+                    </TabsTrigger>
+                    <TabsTrigger value="simulation" disabled={!hasResults} className="flex-1">
+                      Simulation
+                    </TabsTrigger>
+                    <TabsTrigger value="plots" disabled={!hasResults} className="flex-1">
+                      Plots
+                    </TabsTrigger>
+                  </TabsList>
+                </div>
+
+                <div style={{ flex: '1 1 0%', overflowY: 'auto', minHeight: 0 }}>
+                  <TabsContent value="statistics" style={{ margin: 0, padding: '1rem', height: '100%' }}>
+                    <StatisticsTab 
+                      simulationResults={simulationResults} 
+                      stations={stations} 
+                      incidentsCount={incidentsCount}
+                      stationApparatusCounts={stationApparatusCounts}
+                      historicalIncidentStats={historicalIncidentStats}
+                      historicalIncidentError={historicalIncidentError}
+                    />
+                  </TabsContent>
+
+                  <TabsContent value="simulation" style={{ margin: 0, padding: '1rem', height: '100%' }}>
+                    <SimulationTab hasResults={hasResults} simulationResults={simulationResults} />
+                  </TabsContent>
+
+                  <TabsContent value="plots" style={{ margin: 0, padding: '1rem', height: '100%' }}>
+                    <PlotsTab simulationResults={simulationResults} />
+                  </TabsContent>
+                </div>
+              </Tabs>
+            </div>
+          )}
+        </aside>
       </div>
 
       {/* Footer */}

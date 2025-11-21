@@ -708,31 +708,13 @@ export function ControlPanel({
   // Tab enabling logic should be handled in the parent component
 
   return (
-    <div className={`h-full min-h-0 bg-card border-r flex flex-col transition-all duration-300 ${isCollapsed ? 'w-12' : 'w-80'}`}>
-      {/* Header - Fixed at top */}
-      <div className="flex-none px-6 pt-6 pb-4">
-        <div className="flex items-center justify-between">
-          {!isCollapsed && (
-            <div className="flex items-center gap-2">
-              <Settings className="w-5 h-5" />
-              <span className="font-semibold">Simulation Controls</span>
-            </div>
-          )}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onToggleCollapse}
-            className="p-1 h-8 w-8"
-          >
-            {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
-          </Button>
-        </div>
-      </div>
-
-      {/* Scrollable Content - Takes remaining space */}
-      {!isCollapsed && (
-        <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-6">
-          <div className="space-y-6">
+    <div style={{
+      flex: '1 1 0%',
+      overflowY: 'auto',
+      padding: '1.5rem 1rem',
+      minHeight: 0
+    }}>
+      <div className="space-y-6">
           {/* Clear Settings Button */}
           <div className="space-y-4">
             <Button
@@ -1056,9 +1038,7 @@ export function ControlPanel({
               SAVE STATION CONFIG
             </Button>
           </div>
-          </div>
-        </div>
-      )}
+      </div>
     </div>
   );
 }
