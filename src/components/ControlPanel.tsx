@@ -708,31 +708,31 @@ export function ControlPanel({
   // Tab enabling logic should be handled in the parent component
 
   return (
-    <div className={`h-full bg-card border-r flex flex-col transition-all duration-300 ${isCollapsed ? 'w-12' : 'w-80'} flex-shrink-0`}>
-      <Card className="h-full border-0 rounded-none flex flex-col">
-        {/* Header - Fixed */}
-        <CardHeader className="flex-shrink-0 pb-4">
-          <CardTitle className="flex items-center justify-between">
-            {!isCollapsed && (
-              <div className="flex items-center gap-2">
-                <Settings className="w-5 h-5" />
-                Simulation Controls
-              </div>
-            )}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onToggleCollapse}
-              className="p-1 h-8 w-8"
-            >
-              {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
-            </Button>
-          </CardTitle>
-        </CardHeader>
+    <div className={`h-full min-h-0 bg-card border-r flex flex-col transition-all duration-300 ${isCollapsed ? 'w-12' : 'w-80'}`}>
+      {/* Header - Fixed at top */}
+      <div className="flex-none px-6 pt-6 pb-4">
+        <div className="flex items-center justify-between">
+          {!isCollapsed && (
+            <div className="flex items-center gap-2">
+              <Settings className="w-5 h-5" />
+              <span className="font-semibold">Simulation Controls</span>
+            </div>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onToggleCollapse}
+            className="p-1 h-8 w-8"
+          >
+            {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+          </Button>
+        </div>
+      </div>
 
-        {/* Scrollable Content - Only show when not collapsed */}
-        {!isCollapsed && (
-          <CardContent className="flex-1 overflow-y-auto space-y-6">
+      {/* Scrollable Content - Takes remaining space */}
+      {!isCollapsed && (
+        <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-6">
+          <div className="space-y-6">
           {/* Clear Settings Button */}
           <div className="space-y-4">
             <Button
@@ -1056,9 +1056,9 @@ export function ControlPanel({
               SAVE STATION CONFIG
             </Button>
           </div>
-          </CardContent>
-        )}
-      </Card>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
