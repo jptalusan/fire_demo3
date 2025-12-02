@@ -282,17 +282,11 @@ export const CompactMetadataCards: React.FC<CompactMetadataCardsProps> = ({ simu
       value: getSimulationTime(),
       description: 'Simulation time',
       icon: <Clock className="h-4 w-4" />,
-    },
-    {
-      title: 'Success Rate',
-      value: calculateSuccessRate(),
-      description: 'Incidents processed',
-      icon: <AlertTriangle className="h-4 w-4" />,
     }
   ];
 
   return (
-    <div className="grid grid-cols-2 gap-4">
+    <div className="grid grid-cols-1 gap-4">
       {metadata.map((item, index) => (
         <Card key={index} className="p-3">
           <div className="flex items-center justify-between">

@@ -2,8 +2,72 @@ import React, { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { Badge } from './ui/badge';
-import { AlertTriangle, CheckCircle, Clock, MapPin, TrendingUp } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Clock, MapPin, TrendingUp, ArrowDown, ArrowUp, GitCompare } from 'lucide-react';
 import { processStationReport, StationReport } from '../utils/dataProcessing';
+
+// Comparative Metric Card Component
+interface ComparativeMetricCardProps {
+  title: string;
+  icon: React.ReactNode;
+  baselineValue: number;
+  newValue: number;
+  unit: string;
+  format?: (value: number) => string;
+  lowerIsBetter?: boolean;
+}
+
+function ComparativeMetricCard({ 
+  title, 
+  icon, 
+  baselineValue, 
+  newValue, 
+  unit, 
+  format = (v) => v.toFixed(2),
+  lowerIsBetter = true
+}: ComparativeMetricCardProps) {
+  const delta = newValue - baselineValue;
+  const percentChange = baselineValue !== 0 ? ((delta / baselineValue) * 100) : 0;
+  
+  // Determine if this is an improvement
+  const isImprovement = lowerIsBetter ? delta < 0 : delta > 0;
+  const isNeutral = Math.abs(delta) < 0.01;
+  
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium">{title}</CardTitle>
+        {icon}
+      </CardHeader>
+      <CardContent>
+        <div className="text-2xl font-bold mb-2">
+          {format(newValue)} {unit}
+        </div>
+        {!isNeutral && (
+          <div className={`flex items-center gap-1 text-sm font-medium ${
+            isImprovement ? 'text-green-600' : 'text-red-600'
+          }`}>
+            {isImprovement ? (
+              <ArrowDown className="w-4 h-4" />
+            ) : (
+              <ArrowUp className="w-4 h-4" />
+            )}
+            <span>
+              {Math.abs(delta).toFixed(2)} {unit} ({Math.abs(percentChange).toFixed(1)}%)
+            </span>
+          </div>
+        )}
+        {isNeutral && (
+          <div className="flex items-center gap-1 text-sm font-medium text-gray-500">
+            <span>No change</span>
+          </div>
+        )}
+        <div className="text-xs text-muted-foreground mt-1">
+          Baseline: {format(baselineValue)} {unit}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 interface StatisticsTabProps {
   simulationResults?: any;
@@ -11,20 +75,46 @@ interface StatisticsTabProps {
     id: string;
     displayName?: string;
     name?: string;
+    lat?: number;
+    lon?: number;
+    lng?: number;
   }>;
   incidentsCount?: number;
   stationApparatusCounts?: Map<string, Record<string, number>>;
   historicalIncidentStats?: any;
   historicalIncidentError?: string | null;
+  isCounterfactualMode?: boolean;
+  baselineResults?: any;
+  baselineStations?: Array<{
+    id: string;
+    displayName?: string;
+    name?: string;
+    lat?: number;
+    lon?: number;
+    lng?: number;
+  }>;
+  baselineApparatusCounts?: Map<string, Record<string, number>>;
 }
 
 // TODO: Hard coded minutes label performance here.
-export function StatisticsTab({ simulationResults, stations = [], incidentsCount = 0, stationApparatusCounts, historicalIncidentStats, historicalIncidentError }: StatisticsTabProps) {
-  // Process station report data if available
-  const stationReports: StationReport[] = simulationResults?.station_report 
-    ? processStationReport(simulationResults.station_report)
+export function StatisticsTab({ 
+  simulationResults, 
+  stations = [], 
+  incidentsCount = 0, 
+  stationApparatusCounts, 
+  historicalIncidentStats, 
+  historicalIncidentError,
+  isCounterfactualMode = false,
+  baselineResults,
+  baselineStations = [],
+  baselineApparatusCounts
+}: StatisticsTabProps) {
+  // Process station report data if available - handle both regular and comparison results
+  const resultsData = simulationResults?.newConfig || simulationResults;
+  const stationReports: StationReport[] = resultsData?.station_report
+    ? processStationReport(resultsData.station_report) 
     : [];
-
+  
   // Helper function to format time in minutes and seconds
   const formatTravelTime = (seconds: number): string => {
     const minutes = Math.floor(seconds / 60);
@@ -107,7 +197,269 @@ export function StatisticsTab({ simulationResults, stations = [], incidentsCount
 
   return (
     <div className="h-full overflow-auto space-y-4 p-4">
+      {/* Note: Comparative metrics moved to Simulation tab in counterfactual mode */}
+      
+      {/* Regular Statistics Content (shown in both modes) */}
+      {resultsData && (
+        <div className="space-y-4">
+          {/* KPI Cards - Only show in regular mode, hidden in counterfactual */}
+          {!isCounterfactualMode && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Avg Response Time</CardTitle>
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{resultsData?.average_response_time ? Number(resultsData.average_response_time).toFixed(2) : '-'} sec</div>
+                  <p className="text-xs text-muted-foreground">Mean travel time</p>
+                </CardContent>
+              </Card>
+              
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">P90 Response Time</CardTitle>
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{resultsData?.P90_continuous ? Number(resultsData.P90_continuous).toFixed(2) : '-'} sec</div>
+                  <p className="text-xs text-muted-foreground">90th percentile</p>
+                </CardContent>
+              </Card>
+              
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">On-Time Rate</CardTitle>
+                  <MapPin className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{resultsData?.coverage_percent || '-'}</div>
+                  <p className="text-xs text-muted-foreground">Within target time</p>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+        </div>
+      )}
+      
+      {/* Station Configuration Section (always shown) */}
+      {!isCounterfactualMode && (
+        <div className="space-y-4">
+          {/* Original statistics content continues below */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MapPin className="h-5 w-5 text-blue-600" />
+                Station Configuration
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Total Stations</p>
+                  <p className="text-2xl font-bold">{stationCount}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Avg Apparatus per Station</p>
+                  <p className="text-2xl font-bold">{averageApparatusPerStation}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+      
+      {/* Previous counterfactual comparative content removed - now in Simulation tab */}
+      {isCounterfactualMode && baselineResults && simulationResults && (
+        <div className="space-y-4">
+          {/* Comparison tables and detailed analysis can stay here
+              unit=""
+              format={(v) => v.toString()}
+              lowerIsBetter={false}
+            />
+          </div>
+
+          {/* Network Changes Summary */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <GitCompare className="w-4 h-4" />
+                Network Configuration Changes
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {(() => {
+                // Get baseline station data from props
+                const baseline = baselineStations || [];
+                const newStations = stations || [];
+                
+                // Debug logging
+                console.log('Network Changes - Baseline count:', baseline.length);
+                console.log('Network Changes - New stations count:', newStations.length);
+                if (baseline.length > 0) {
+                  console.log('Baseline first station:', baseline[0]);
+                }
+                if (newStations.length > 0) {
+                  console.log('New stations first station:', newStations[0]);
+                }
+                
+                // Helper to get station name
+                const getStationName = (station: any) => 
+                  station.displayName || station.name || station.station_name || station.id || station.station_id;
+                
+                // Calculate changes based on station names
+                const baselineStationNames = new Set(baseline.map((s: any) => getStationName(s)));
+                const newStationNames = new Set(newStations.map(s => getStationName(s)));
+                
+                // New stations added
+                const addedStations = newStations.filter(s => !baselineStationNames.has(getStationName(s)));
+                
+                // Stations removed
+                const removedStations = baseline.filter((s: any) => !newStationNames.has(getStationName(s)));
+                
+                // Stations that exist in both (potential moves or apparatus changes)
+                const commonStations = newStations.filter(s => baselineStationNames.has(getStationName(s)));
+                
+                // Check for moved stations (position changed)
+                const movedStations = commonStations.filter(current => {
+                  const currentName = getStationName(current);
+                  const baselineStation = baseline.find((s: any) => getStationName(s) === currentName);
+                  
+                  if (!baselineStation) return false;
+                  
+                  const baseLat = baselineStation.lat || baselineStation.latitude;
+                  const baseLon = baselineStation.lon || baselineStation.lng || baselineStation.longitude;
+                  const currLat = current.lat;
+                  const currLon = current.lon || current.lng;
+                  
+                  // Check if position changed (allowing for small floating point differences)
+                  return Math.abs(baseLat - currLat) > 0.0001 || Math.abs(baseLon - currLon) > 0.0001;
+                });
+                
+                // Check for apparatus changes
+                const apparatusChangedStations = commonStations.filter(current => {
+                  const currentName = getStationName(current);
+                  const baselineStation = baseline.find((s: any) => getStationName(s) === currentName);
+                  
+                  if (!baselineStation) return false;
+                  
+                  // Get baseline apparatus counts from the captured baseline
+                  const baseApparatus = baselineApparatusCounts?.get(baselineStation.id);
+                  const currApparatus = stationApparatusCounts?.get(current.id);
+                  
+                  // If either is missing, can't compare
+                  if (!baseApparatus && !currApparatus) return false;
+                  if (!baseApparatus || !currApparatus) return true; // One has apparatus, one doesn't
+                  
+                  // Compare total apparatus count
+                  const baseTotal = Object.values(baseApparatus).reduce((sum, count) => sum + (count || 0), 0);
+                  const currTotal = Object.values(currApparatus).reduce((sum, count) => sum + (count || 0), 0);
+                  
+                  return baseTotal !== currTotal;
+                });
+                
+                return (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                        <div className="text-2xl font-bold text-green-700">{addedStations.length}</div>
+                        <div className="text-sm text-green-600">New Stations Added</div>
+                      </div>
+                      
+                      <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                        <div className="text-2xl font-bold text-red-700">{removedStations.length}</div>
+                        <div className="text-sm text-red-600">Stations Removed</div>
+                      </div>
+                      
+                      <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                        <div className="text-2xl font-bold text-blue-700">{movedStations.length}</div>
+                        <div className="text-sm text-blue-600">Stations Relocated</div>
+                      </div>
+                      
+                      <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                        <div className="text-2xl font-bold text-purple-700">{apparatusChangedStations.length}</div>
+                        <div className="text-sm text-purple-600">Apparatus Modified</div>
+                      </div>
+                    </div>
+                    
+                    {/* Detailed Changes */}
+                    <div className="space-y-2 text-sm">
+                      {addedStations.length > 0 && (
+                        <div className="flex items-start gap-2">
+                          <CheckCircle className="w-4 h-4 text-green-600 mt-0.5" />
+                          <div>
+                            <strong className="text-green-700">Added:</strong>{' '}
+                            {addedStations.map(s => getStationName(s)).join(', ')}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {removedStations.length > 0 && (
+                        <div className="flex items-start gap-2">
+                          <AlertTriangle className="w-4 h-4 text-red-600 mt-0.5" />
+                          <div>
+                            <strong className="text-red-700">Removed:</strong>{' '}
+                            {removedStations.map((s: any) => getStationName(s)).join(', ')}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {movedStations.length > 0 && (
+                        <div className="flex items-start gap-2">
+                          <MapPin className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                          <div>
+                            <strong className="text-blue-700">Relocated:</strong>
+                            <div className="mt-1 space-y-1">
+                              {movedStations.map(current => {
+                                const currentName = getStationName(current);
+                                const baselineStation = baseline.find((s: any) => getStationName(s) === currentName);
+                                
+                                if (!baselineStation) return null;
+                                
+                                const baseLat = (baselineStation.lat || baselineStation.latitude)?.toFixed(4);
+                                const baseLon = (baselineStation.lon || baselineStation.lng || baselineStation.longitude)?.toFixed(4);
+                                const currLat = current.lat?.toFixed(4);
+                                const currLon = (current.lon || current.lng)?.toFixed(4);
+                                
+                                return (
+                                  <div key={current.id} className="text-xs">
+                                    <span className="font-medium">{currentName}</span>
+                                    {' '}({baseLat}, {baseLon}) → ({currLat}, {currLon})
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {apparatusChangedStations.length > 0 && (
+                        <div className="flex items-start gap-2">
+                          <TrendingUp className="w-4 h-4 text-purple-600 mt-0.5" />
+                          <div>
+                            <strong className="text-purple-700">Apparatus Changed:</strong>{' '}
+                            {apparatusChangedStations.map(s => getStationName(s)).join(', ')}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {addedStations.length === 0 && removedStations.length === 0 && 
+                       movedStations.length === 0 && apparatusChangedStations.length === 0 && (
+                        <div className="text-gray-500 italic text-center py-2">
+                          No network configuration changes detected
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       {/* Top-level simulation KPIs moved to Simulation Results tab */}
+      {/* Performance Impact Summary moved to Simulation Results tab */}
       {/* Compact apparatus totals grid (aim ~6+ per row) */}
       <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-2">
         {apparatusColumns.map(col => (

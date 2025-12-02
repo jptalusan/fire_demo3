@@ -26,16 +26,19 @@ export function PlotsTab({ simulationResults, historicalIncidentStats, incidents
   } | null>(null);
 
   // Build response time chart data from simulation station_report
+  // Handle both regular results and counterfactual comparison results
+  const resultsData = simulationResults?.newConfig || simulationResults;
+  
   let stationReports: StationReport[] = [];
   let stationTravelTimes: StationTravelTimes[] = [];
   
   try {
-    stationReports = simulationResults?.station_report
-      ? processStationReport(simulationResults.station_report)
+    stationReports = resultsData?.station_report
+      ? processStationReport(resultsData.station_report)
       : [];
     
-    stationTravelTimes = simulationResults?.station_report
-      ? processStationTravelTimes(simulationResults.station_report)
+    stationTravelTimes = resultsData?.station_report
+      ? processStationTravelTimes(resultsData.station_report)
       : [];
   } catch (error) {
     console.error('Error processing station data:', error);
@@ -47,7 +50,7 @@ export function PlotsTab({ simulationResults, historicalIncidentStats, incidents
   console.log('Processed station travel times:', stationTravelTimes);
 
   // TODO: 5 is hard coded, put it in some config.
-  const targetMinutes: number = simulationResults?.target_response_minutes ?? 5;
+  const targetMinutes: number = resultsData?.target_response_minutes ?? 5;
 
   const responseTimeData = stationReports
     .slice()
@@ -106,6 +109,286 @@ export function PlotsTab({ simulationResults, historicalIncidentStats, incidents
 
   return (
     <div className="h-full overflow-auto space-y-4 p-4">
+      {/* Comparison Charts for Changed Stations (Counterfactual Mode) */}
+      {(() => {
+        // Filter stations that have both baseline and new config data (excluding new stations)
+        const stationsWithComparison = simulationResults?.comparison?.station_comparison?.filter(
+          (station: any) => 
+            station?.status === 'existing_station' &&
+            station?.average_travel_time?.baseline !== null &&
+            station?.average_travel_time?.new !== null &&
+            station?.average_travel_time?.difference !== 0
+        ) || [];
+
+        if (stationsWithComparison.length === 0) return null;
+
+        return (
+          <div className="space-y-4 mb-6">
+            <div className="flex items-center gap-2 mb-4">
+              <Badge variant="secondary" className="text-sm">
+                Counterfactual Analysis
+              </Badge>
+              <span className="text-sm text-muted-foreground">
+                Comparing {stationsWithComparison.length} existing stations with changes
+              </span>
+            </div>
+
+            {/* Average Response Time Comparison */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Average Response Time: Baseline vs New Configuration</CardTitle>
+                    <CardDescription>
+                      Comparison of average response times for existing stations with changes (minutes)
+                    </CardDescription>
+                  </div>
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={() => setFullscreenChart({
+                      title: "Average Response Time: Baseline vs New Configuration",
+                      content: (
+                        <ResponsiveContainer width="100%" height={600}>
+                          <BarChart 
+                            data={stationsWithComparison.map((station: any) => ({
+                              station: station.station_name.replace('Station ', ''),
+                              baseline: Number((station.average_travel_time.baseline / 60).toFixed(2)),
+                              newConfig: Number((station.average_travel_time.new / 60).toFixed(2))
+                            }))}
+                            margin={{ top: 20, right: 30, left: 5, bottom: 100 }}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis 
+                              dataKey="station" 
+                              angle={-45}
+                              textAnchor="end"
+                              height={100}
+                              tickMargin={15}
+                              fontSize={11}
+                              label={{ value: 'Stations', position: 'insideBottom', offset: -5, style: { textAnchor: 'middle' } }}
+                            />
+                            <YAxis 
+                              label={{ value: 'Response Time (minutes)', angle: -90, position: 'insideLeft', offset: 10 }} 
+                              width={80}
+                            />
+                            <Tooltip formatter={(value: any) => `${value} min`} />
+                            <Legend />
+                            <Bar dataKey="baseline" fill="#8884d8" name="Baseline" />
+                            <Bar dataKey="newConfig" fill="#82ca9d" name="New Configuration" />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      )
+                    })}
+                    className="hover:bg-gray-100"
+                  >
+                    <Maximize2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={450}>
+                  <BarChart 
+                    data={stationsWithComparison.map((station: any) => ({
+                      station: station.station_name.replace('Station ', ''),
+                      baseline: Number((station.average_travel_time.baseline / 60).toFixed(2)),
+                      newConfig: Number((station.average_travel_time.new / 60).toFixed(2))
+                    }))}
+                    margin={{ top: 20, right: 30, left: 5, bottom: 80 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis 
+                      dataKey="station" 
+                      angle={-45}
+                      textAnchor="end"
+                      height={80}
+                      tickMargin={10}
+                      fontSize={11}
+                    />
+                    <YAxis 
+                      label={{ value: 'Response Time (minutes)', angle: -90, position: 'center' }} 
+                      width={100}
+                    />
+                    <Tooltip formatter={(value: any) => `${value} min`} />
+                    <Legend />
+                    <Bar dataKey="baseline" fill="#8884d8" name="Baseline" />
+                    <Bar dataKey="newConfig" fill="#82ca9d" name="New Configuration" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            {/* P90 Response Time Comparison */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>P90 Response Time: Baseline vs New Configuration</CardTitle>
+                    <CardDescription>
+                      Comparison of 90th percentile response times for existing stations with changes (minutes)
+                    </CardDescription>
+                  </div>
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={() => setFullscreenChart({
+                      title: "P90 Response Time: Baseline vs New Configuration",
+                      content: (
+                        <ResponsiveContainer width="100%" height={600}>
+                          <BarChart 
+                            data={stationsWithComparison.map((station: any) => ({
+                              station: station.station_name.replace('Station ', ''),
+                              baseline: Number((station.p90_travel_time.baseline / 60).toFixed(2)),
+                              newConfig: Number((station.p90_travel_time.new / 60).toFixed(2))
+                            }))}
+                            margin={{ top: 20, right: 30, left: 5, bottom: 100 }}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis 
+                              dataKey="station" 
+                              angle={-45}
+                              textAnchor="end"
+                              height={100}
+                              tickMargin={15}
+                              fontSize={11}
+                            />
+                            <YAxis 
+                              label={{ value: 'P90 Response Time (minutes)', angle: -90, position: 'center' }} 
+                              width={100}
+                            />
+                            <Tooltip formatter={(value: any) => `${value} min`} />
+                            <Legend />
+                            <Bar dataKey="baseline" fill="#8884d8" name="Baseline" />
+                            <Bar dataKey="newConfig" fill="#82ca9d" name="New Configuration" />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      )
+                    })}
+                    className="hover:bg-gray-100"
+                  >
+                    <Maximize2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={450}>
+                  <BarChart 
+                    data={stationsWithComparison.map((station: any) => ({
+                      station: station.station_name.replace('Station ', ''),
+                      baseline: Number((station.p90_travel_time.baseline / 60).toFixed(2)),
+                      newConfig: Number((station.p90_travel_time.new / 60).toFixed(2))
+                    }))}
+                    margin={{ top: 20, right: 30, left: 5, bottom: 80 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis 
+                      dataKey="station" 
+                      angle={-45}
+                      textAnchor="end"
+                      height={80}
+                      tickMargin={10}
+                      fontSize={11}
+                    />
+                    <YAxis 
+                      label={{ value: 'P90 Response Time (minutes)', angle: -90, position: 'center' }} 
+                      width={100}
+                    />
+                    <Tooltip formatter={(value: any) => `${value} min`} />
+                    <Legend />
+                    <Bar dataKey="baseline" fill="#8884d8" name="Baseline" />
+                    <Bar dataKey="newConfig" fill="#82ca9d" name="New Configuration" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            {/* Incident Count Comparison */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Incidents Handled: Baseline vs New Configuration</CardTitle>
+                    <CardDescription>
+                      Comparison of incident counts for existing stations with changes
+                    </CardDescription>
+                  </div>
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={() => setFullscreenChart({
+                      title: "Incidents Handled: Baseline vs New Configuration",
+                      content: (
+                        <ResponsiveContainer width="100%" height={600}>
+                          <BarChart 
+                            data={stationsWithComparison.map((station: any) => ({
+                              station: station.station_name.replace('Station ', ''),
+                              baseline: station.total_incidents.baseline,
+                              newConfig: station.total_incidents.new
+                            }))}
+                            margin={{ top: 20, right: 30, left: 5, bottom: 100 }}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis 
+                              dataKey="station" 
+                              angle={-45}
+                              textAnchor="end"
+                              height={100}
+                              tickMargin={15}
+                              fontSize={11}
+                            />
+                            <YAxis 
+                              label={{ value: 'Incident Count', angle: -90, position: 'center' }} 
+                              width={100}
+                            />
+                            <Tooltip />
+                            <Legend />
+                            <Bar dataKey="baseline" fill="#8884d8" name="Baseline" />
+                            <Bar dataKey="newConfig" fill="#82ca9d" name="New Configuration" />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      )
+                    })}
+                    className="hover:bg-gray-100"
+                  >
+                    <Maximize2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={450}>
+                  <BarChart 
+                    data={stationsWithComparison.map((station: any) => ({
+                      station: station.station_name.replace('Station ', ''),
+                      baseline: station.total_incidents.baseline,
+                      newConfig: station.total_incidents.new
+                    }))}
+                    margin={{ top: 20, right: 30, left: 5, bottom: 80 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis 
+                      dataKey="station" 
+                      angle={-45}
+                      textAnchor="end"
+                      height={80}
+                      tickMargin={10}
+                      fontSize={11}
+                    />
+                    <YAxis 
+                      label={{ value: 'Incident Count', angle: -90, position: 'center' }} 
+                      width={100}
+                    />
+                    <Tooltip />
+                    <Legend />
+                    <Bar dataKey="baseline" fill="#8884d8" name="Baseline" />
+                    <Bar dataKey="newConfig" fill="#82ca9d" name="New Configuration" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </div>
+        );
+      })()}
+
       {/* Travel Times Box Plot - Full Width */}
       {/* Travel Times Box Plot - Compact Layout */}
       <Card>
@@ -122,8 +405,8 @@ export function PlotsTab({ simulationResults, historicalIncidentStats, incidents
               size="sm"
               onClick={() => setFullscreenChart({
                 title: "Travel Time Distribution by Station",
-                content: simulationResults && stationTravelTimes.length > 0 ? (
-                  <BoxPlotChart data={stationTravelTimes} yAxisLabel="Travel Time (minutes)" />
+                content: resultsData && stationTravelTimes.length > 0 ? (
+                  <BoxPlotChart data={stationTravelTimes} yAxisLabel="Travel Time (minutes)" height={600} />
                 ) : (
                   <div className="text-sm text-muted-foreground p-4 text-center">
                     Run a simulation to see travel time distribution.
@@ -137,9 +420,9 @@ export function PlotsTab({ simulationResults, historicalIncidentStats, incidents
           </div>
         </CardHeader>
         <CardContent className="pt-2 pb-2">
-          {simulationResults && stationTravelTimes.length > 0 ? (
-            <div className="w-full" style={{ height: '240px' }}>
-              <BoxPlotChart data={stationTravelTimes} yAxisLabel="Travel Time (minutes)" height={240} />
+          {resultsData && stationTravelTimes.length > 0 ? (
+            <div className="w-full" style={{ height: '280px' }}>
+              <BoxPlotChart data={stationTravelTimes} yAxisLabel="Travel Time (minutes)" height={280} />
             </div>
           ) : (
             <div className="text-sm text-muted-foreground py-4 text-center">
@@ -164,7 +447,7 @@ export function PlotsTab({ simulationResults, historicalIncidentStats, incidents
               size="sm"
               onClick={() => setFullscreenChart({
                 title: "P90 Response Times by Station",
-                content: simulationResults && simulationResults.station_report && stationReports.length > 0 ? (
+                content: resultsData && resultsData.station_report && responseTimeData.length > 0 ? (
                   <ResponsiveContainer width="100%" height={600}>
                     <BarChart 
                       data={stationReports
@@ -184,7 +467,7 @@ export function PlotsTab({ simulationResults, historicalIncidentStats, incidents
                           };
                         })
                       }
-                      margin={{ top: 20, right: 30, left: 20, bottom: 100 }}
+                      margin={{ top: 20, right: 30, left: 5, bottom: 100 }}
                     >
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis 
@@ -197,7 +480,10 @@ export function PlotsTab({ simulationResults, historicalIncidentStats, incidents
                         fontSize={11}
                         label={{ value: 'Stations', position: 'insideBottom', offset: -5, style: { textAnchor: 'middle' } }}
                       />
-                      <YAxis label={{ value: 'Response Time (minutes)', angle: -90, position: 'insideLeft' }} />
+                      <YAxis 
+                        label={{ value: 'Response Time (minutes)', angle: -90, position: 'center' }} 
+                        width={100}
+                      />
                       <Tooltip formatter={(value: any) => [`${value} min`, 'P90 Time']} />
                       <Bar dataKey="p90Time" fill="#82ca9d" name="P90 Time (min)" />
                       <ReferenceLine y={targetMinutes} stroke="red" strokeDasharray="5 5" label={`Target ${targetMinutes}m`} />
@@ -216,7 +502,7 @@ export function PlotsTab({ simulationResults, historicalIncidentStats, incidents
           </div>
         </CardHeader>
         <CardContent>
-          {simulationResults && simulationResults.station_report && stationReports.length > 0 ? (
+          {resultsData && resultsData.station_report && stationReports.length > 0 ? (
             <ResponsiveContainer width="100%" height={450}>
               <BarChart 
                 data={stationReports
@@ -236,7 +522,7 @@ export function PlotsTab({ simulationResults, historicalIncidentStats, incidents
                     };
                   })
                 }
-                margin={{ top: 20, right: 30, left: 20, bottom: 100 }}
+                margin={{ top: 20, right: 30, left: 5, bottom: 100 }}
               >
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis 
@@ -249,7 +535,10 @@ export function PlotsTab({ simulationResults, historicalIncidentStats, incidents
                   fontSize={11}
                   label={{ value: 'Stations', position: 'insideBottom', offset: -5, style: { textAnchor: 'middle' } }}
                 />
-                <YAxis label={{ value: 'Response Time (minutes)', angle: -90, position: 'insideLeft' }} />
+                <YAxis 
+                  label={{ value: 'Response Time (minutes)', angle: -90, position: 'center' }} 
+                  width={100}
+                />
                 <Tooltip formatter={(value: any) => [`${value} min`, 'P90 Time']} />
                 <Bar dataKey="p90Time" fill="#82ca9d" name="P90 Time (min)" />
                 <ReferenceLine y={targetMinutes} stroke="red" strokeDasharray="5 5" label={`Target ${targetMinutes}m`} />
@@ -279,12 +568,12 @@ export function PlotsTab({ simulationResults, historicalIncidentStats, incidents
               <Button 
                 variant="ghost" 
                 size="sm"
-                onClick={() => setFullscreenChart({
-                  title: "Average Response Times by Station",
-                  content: simulationResults && simulationResults.station_report && responseTimeData.length > 0 ? (
+                  onClick={() => setFullscreenChart({
+                    title: "Average Response Times by Station",
+                    content: resultsData && resultsData.station_report && responseTimeData.length > 0 ? (
                     <div style={{ width: '100%', height: '700px' }}>
                       <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={responseTimeData} margin={{ top: 20, right: 30, left: 40, bottom: 120 }}>
+                        <BarChart data={responseTimeData} margin={{ top: 20, right: 30, left: 5, bottom: 120 }}>
                           <CartesianGrid strokeDasharray="3 3" />
                           <XAxis 
                             dataKey="station" 
@@ -297,8 +586,9 @@ export function PlotsTab({ simulationResults, historicalIncidentStats, incidents
                             label={{ value: 'Stations', position: 'insideBottom', offset: -10, style: { textAnchor: 'middle', fontSize: '16px' } }}
                           />
                           <YAxis 
-                            label={{ value: 'Response Time (minutes)', angle: -90, position: 'insideLeft' }}
+                            label={{ value: 'Response Time (minutes)', angle: -90, position: 'center' }}
                             fontSize={14}
+                            width={100}
                           />
                           <Tooltip 
                             formatter={(value: any, name: any) => [`${value} min`, name === 'avgTime' ? 'Response Time' : name]}
@@ -323,9 +613,9 @@ export function PlotsTab({ simulationResults, historicalIncidentStats, incidents
             </div>
           </CardHeader>
           <CardContent>
-            {simulationResults && simulationResults.station_report && responseTimeData.length > 0 ? (
+            {resultsData && resultsData.station_report && responseTimeData.length > 0 ? (
               <ResponsiveContainer width="100%" height={450}>
-                <BarChart data={responseTimeData} margin={{ top: 20, right: 30, left: 20, bottom: 100 }}>
+                <BarChart data={responseTimeData} margin={{ top: 20, right: 30, left: 5, bottom: 100 }}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis 
                     dataKey="station" 
@@ -337,7 +627,10 @@ export function PlotsTab({ simulationResults, historicalIncidentStats, incidents
                     fontSize={11}
                     label={{ value: 'Stations', position: 'insideBottom', offset: -5, style: { textAnchor: 'middle' } }}
                   />
-                  <YAxis label={{ value: 'Minutes', angle: -90, position: 'insideLeft' }} />
+                  <YAxis 
+                    label={{ value: 'Minutes', angle: -90, position: 'center' }} 
+                    width={100}
+                  />
                   <Tooltip formatter={(value: any, name: any) => [value, name === 'avgTime' ? 'Avg Time (min)' : name === 'target' ? 'Target (min)' : name]} />
                   <Bar dataKey="avgTime" fill="#8884d8" name="Avg Time (min)" />
                   <ReferenceLine y={targetMinutes} stroke="#82ca9d" strokeDasharray="4 4" label={`Target ${targetMinutes}m`} />
@@ -366,9 +659,9 @@ export function PlotsTab({ simulationResults, historicalIncidentStats, incidents
                 size="sm"
                 onClick={() => setFullscreenChart({
                   title: "Incidents Handled by Station",
-                  content: simulationResults && simulationResults.station_report && responseTimeData.length > 0 ? (
+                  content: resultsData && resultsData.station_report && responseTimeData.length > 0 ? (
                     <ResponsiveContainer width="100%" height={600}>
-                      <BarChart data={responseTimeData} margin={{ top: 20, right: 30, left: 20, bottom: 100 }}>
+                      <BarChart data={responseTimeData} margin={{ top: 20, right: 30, left: 5, bottom: 100 }}>
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis 
                           dataKey="station" 
@@ -380,7 +673,10 @@ export function PlotsTab({ simulationResults, historicalIncidentStats, incidents
                           fontSize={11}
                           label={{ value: 'Stations', position: 'insideBottom', offset: -5, style: { textAnchor: 'middle' } }}
                         />
-                        <YAxis label={{ value: 'Incidents', angle: -90, position: 'insideLeft' }} />
+                        <YAxis 
+                          label={{ value: 'Incidents', angle: -90, position: 'center' }} 
+                          width={100}
+                        />
                         <Tooltip formatter={(value: any, name: any) => [value, name === 'incidents' ? 'Incidents' : name]} />
                         <Bar dataKey="incidents" fill="#4ECDC4" name="Incidents" />
                       </BarChart>
@@ -398,9 +694,9 @@ export function PlotsTab({ simulationResults, historicalIncidentStats, incidents
             </div>
           </CardHeader>
           <CardContent>
-            {simulationResults && simulationResults.station_report && responseTimeData.length > 0 ? (
+            {resultsData && resultsData.station_report && responseTimeData.length > 0 ? (
               <ResponsiveContainer width="100%" height={450}>
-                <BarChart data={responseTimeData} margin={{ top: 20, right: 30, left: 20, bottom: 100 }}>
+                <BarChart data={responseTimeData} margin={{ top: 20, right: 30, left: 5, bottom: 100 }}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis 
                     dataKey="station" 
@@ -412,7 +708,10 @@ export function PlotsTab({ simulationResults, historicalIncidentStats, incidents
                     fontSize={11}
                     label={{ value: 'Stations', position: 'insideBottom', offset: -5, style: { textAnchor: 'middle' } }}
                   />
-                  <YAxis label={{ value: 'Incidents', angle: -90, position: 'insideLeft' }} />
+                  <YAxis 
+                    label={{ value: 'Incidents', angle: -90, position: 'center' }} 
+                    width={100}
+                  />
                   <Tooltip formatter={(value: any, name: any) => [value, name === 'incidents' ? 'Incidents' : name]} />
                   <Bar dataKey="incidents" fill="#4ECDC4" name="Incidents" />
                 </BarChart>
@@ -440,7 +739,7 @@ export function PlotsTab({ simulationResults, historicalIncidentStats, incidents
                 size="sm"
                 onClick={() => setFullscreenChart({
                   title: "Average Service Time by Station",
-                  content: simulationResults && simulationResults.station_report && stationReports.length > 0 ? (
+                  content: resultsData && resultsData.station_report && stationReports.length > 0 ? (
                     <ResponsiveContainer width="100%" height={600}>
                       <BarChart 
                         data={stationReports
@@ -453,7 +752,7 @@ export function PlotsTab({ simulationResults, historicalIncidentStats, incidents
                           .map((report) => {
                             const match = report.stationName.match(/\d+/);
                             const stationNum = match ? match[0] : report.stationName;
-                            const stationData = simulationResults.station_report.find((item: any) => 
+                            const stationData = resultsData.station_report.find((item: any) => 
                               Object.keys(item)[0] === `Station ${stationNum.padStart(2, '0')}`
                             );
                             const serviceTime = stationData ? 
@@ -464,7 +763,7 @@ export function PlotsTab({ simulationResults, historicalIncidentStats, incidents
                             };
                           })
                         } 
-                        margin={{ top: 20, right: 30, left: 20, bottom: 100 }}
+                        margin={{ top: 20, right: 30, left: 5, bottom: 100 }}
                       >
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis 
@@ -477,7 +776,10 @@ export function PlotsTab({ simulationResults, historicalIncidentStats, incidents
                           fontSize={11}
                           label={{ value: 'Stations', position: 'insideBottom', offset: -5, style: { textAnchor: 'middle' } }}
                         />
-                        <YAxis label={{ value: 'Service Time (minutes)', angle: -90, position: 'insideLeft' }} />
+                        <YAxis 
+                          label={{ value: 'Service Time (minutes)', angle: -90, position: 'center' }} 
+                          width={100}
+                        />
                         <Tooltip formatter={(value: any, name: any) => [`${value} min`, 'Service Time']} />
                         <Bar dataKey="serviceTime" fill="#9B59B6" name="Service Time (min)" />
                       </BarChart>
@@ -495,7 +797,7 @@ export function PlotsTab({ simulationResults, historicalIncidentStats, incidents
             </div>
           </CardHeader>
           <CardContent>
-            {simulationResults && simulationResults.station_report && stationReports.length > 0 ? (
+            {resultsData && resultsData.station_report && stationReports.length > 0 ? (
               <ResponsiveContainer width="100%" height={450}>
                 <BarChart 
                   data={stationReports
@@ -512,7 +814,7 @@ export function PlotsTab({ simulationResults, historicalIncidentStats, incidents
                       const stationNum = match ? match[0] : report.stationName;
                       
                       // Get service time from simulation results
-                      const stationData = simulationResults.station_report.find((item: any) => 
+                      const stationData = resultsData.station_report.find((item: any) => 
                         Object.keys(item)[0] === `Station ${stationNum.padStart(2, '0')}`
                       );
                       const serviceTime = stationData ? 
@@ -524,7 +826,7 @@ export function PlotsTab({ simulationResults, historicalIncidentStats, incidents
                       };
                     })
                   } 
-                  margin={{ top: 20, right: 30, left: 20, bottom: 100 }}
+                  margin={{ top: 20, right: 30, left: 5, bottom: 100 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis 
@@ -537,7 +839,10 @@ export function PlotsTab({ simulationResults, historicalIncidentStats, incidents
                     fontSize={11}
                     label={{ value: 'Stations', position: 'insideBottom', offset: -5, style: { textAnchor: 'middle' } }}
                   />
-                  <YAxis label={{ value: 'Service Time (minutes)', angle: -90, position: 'insideLeft' }} />
+                  <YAxis 
+                    label={{ value: 'Service Time (minutes)', angle: -90, position: 'center' }} 
+                    width={100}
+                  />
                   <Tooltip formatter={(value: any, name: any) => [`${value} min`, 'Service Time']} />
                   <Bar dataKey="serviceTime" fill="#9B59B6" name="Service Time (min)" />
                 </BarChart>
@@ -552,8 +857,6 @@ export function PlotsTab({ simulationResults, historicalIncidentStats, incidents
 
       </div>
 
-
-
       {/* Enhanced Analytics with Real Data */}
       <div className="mt-8">
         <Collapsible open={advancedAnalyticsOpen} onOpenChange={setAdvancedAnalyticsOpen}>
@@ -564,7 +867,7 @@ export function PlotsTab({ simulationResults, historicalIncidentStats, incidents
                   <div>
                     <CardTitle className="text-xl">Advanced Analytics</CardTitle>
                     <CardDescription className="mt-2">
-                      {incidents.length > 0 || (simulationResults && simulationResults.station_report)
+                      {incidents.length > 0 || (resultsData && resultsData.station_report)
                         ? "Performance metrics using real data from loaded incidents and simulation results"
                         : "Detailed performance metrics and station-specific analysis with sample data"
                       }

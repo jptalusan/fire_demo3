@@ -4,9 +4,10 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Separator } from './ui/separator';
-import { Play, Settings, ChevronLeft, ChevronRight, Download } from 'lucide-react';
+import { Play, Settings, ChevronLeft, ChevronRight, Download, GitCompare } from 'lucide-react';
 import { ProcessedStation, Apparatus } from '../utils/dataProcessing';
 import controlPanelConfig from '../config/controlPanelConfig.json';
+import { Switch } from './ui/switch';
 
 // Interface for apparatus counts (matching App.tsx and MapSection)
 interface ApparatusCounts {
@@ -48,6 +49,10 @@ interface ControlPanelProps {
   onHistoricalIncidentStatsChange?: (stats: any) => void;
   onHistoricalIncidentErrorChange?: (error: string | null) => void;
   onIncidentsChange?: (incidents: any[]) => void;
+  isCounterfactualMode?: boolean;
+  onCounterfactualModeChange?: (mode: boolean) => void;
+  baselineResults?: any;
+  onBaselineResultsChange?: (results: any) => void;
 }
 
 export function ControlPanel({
@@ -85,6 +90,10 @@ export function ControlPanel({
   onHistoricalIncidentErrorChange,
   onIncidentsChange,
   incidentsCount = 0,
+  isCounterfactualMode = false,
+  onCounterfactualModeChange,
+  baselineResults,
+  onBaselineResultsChange,
 }: ControlPanelProps) {
   const [fireStationsFile, setFireStationsFile] = useState<File | null>(null);
   const [incidentsFile, setIncidentsFile] = useState<File | null>(null);
@@ -592,6 +601,69 @@ export function ControlPanel({
     }
   };
 
+  // Helper function to run baseline simulation in counterfactual mode
+  const runBaselineSimulation = async (controller: AbortController, signal: AbortSignal) => {
+    const baselinePayload = {
+      stationData: 'default_stations', // Always use default stations for baseline
+      dateRange: {
+        startDate: startDate ? startDate.toISOString() : null,
+        endDate: endDate ? endDate.toISOString() : null
+      },
+      models: {
+        incident: selectedIncidentModel,
+        travelTime: selectedTravelTimeModel,
+        serviceTime: selectedServiceTimeModel,
+        dispatch: selectedDispatchPolicy
+      },
+      selectedIncidentFile,
+      selectedStationFile,
+      selectedServiceZoneFile: selectedDispatchPolicy === 'firebeats' ? selectedServiceZoneFile : undefined,
+      dispatchPolicy: selectedDispatchPolicy,
+      stations: stations.map(station => {
+        const apparatusCounts = stationApparatusCounts.get(station.id);
+        const apparatus = apparatusCounts 
+          ? convertApparatusCountsToSimpleArray(apparatusCounts)
+          : []; 
+        return {
+          id: station.id,
+          name: station.displayName,
+          lat: station.lat,
+          lon: station.lon, 
+          apparatus: apparatus,
+          serviceZone: station.serviceZone, 
+        };
+      }),
+      responseTime: parseInt(responseTime),
+      maxDistance: parseFloat(maxDistance),
+      options: {
+        coverageAnalysis: true,
+        responseTimeAnalysis: true,
+        resourceOptimization: false
+      }
+    };
+
+    console.log('Running baseline simulation...');
+    const response = await fetch('http://localhost:9999/run-simulation2', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(baselinePayload),
+      signal: signal
+    });
+
+    if (!response.ok) {
+      throw new Error(`Baseline simulation failed! status: ${response.status}`);
+    }
+
+    const baselineResult = await response.json();
+    console.log('Baseline simulation complete:', baselineResult);
+
+    if (baselineResult.status === 'success' && onBaselineResultsChange) {
+      onBaselineResultsChange(baselineResult);
+    }
+
+    return baselineResult;
+  };
+
   const handleRunSimulation = async () => {
     // Define the timeout duration (e.g., 120 seconds)
     const TIMEOUT_MS = 12000000; 
@@ -608,87 +680,197 @@ export function ControlPanel({
     try {
       setIsSimulating(true); // Disable the button and show loading state
 
-    const payload = {
-        // Input configurations
-        stationData: selectedStationData,
-        dateRange: {
-          startDate: startDate ? startDate.toISOString() : null,
-          endDate: endDate ? endDate.toISOString() : null
-        },
-        
-        // Model configurations
-        models: {
-          incident: selectedIncidentModel,
-          travelTime: selectedTravelTimeModel,
-          serviceTime: selectedServiceTimeModel,
-          dispatch: selectedDispatchPolicy
-        },
-        
-        // Legacy fields for backward compatibility
-        selectedIncidentFile,
-        selectedStationFile,
-        selectedServiceZoneFile: selectedDispatchPolicy === 'firebeats' ? selectedServiceZoneFile : undefined,
-        dispatchPolicy: selectedDispatchPolicy,
-        
-        stations: stations.map(station => {
-          const apparatusCounts = stationApparatusCounts.get(station.id);
-          const apparatus = apparatusCounts 
-            ? convertApparatusCountsToSimpleArray(apparatusCounts)
-            : []; 
-          return {
-            id: station.id,
-            name: station.displayName,
-            lat: station.lat,
-            lon: station.lon, 
-            apparatus: apparatus,
-            serviceZone: station.serviceZone, 
-          };
-        }),
-        responseTime: parseInt(responseTime),
-        maxDistance: parseFloat(maxDistance),
-        options: {
-          coverageAnalysis: true,
-          responseTimeAnalysis: true,
-          resourceOptimization: false
-        }
-      };
-        
-      console.log('Sending simulation request with payload:', payload);
-      
       // Start timing the API call
       const startTime = performance.now();
-      
-      const response = await fetch('http://localhost:9999/run-simulation2', {
+
+      // Counterfactual mode: call comparison endpoint
+      if (isCounterfactualMode) {
+        const comparisonPayload = {
+          // Baseline configuration (always default stations)
+          baseline: {
+            stationData: 'default_stations',
+            dateRange: {
+              startDate: startDate ? startDate.toISOString() : null,
+              endDate: endDate ? endDate.toISOString() : null
+            },
+            models: {
+              incident: selectedIncidentModel,
+              travelTime: selectedTravelTimeModel,
+              serviceTime: selectedServiceTimeModel,
+              dispatch: selectedDispatchPolicy
+            },
+            selectedIncidentFile,
+            selectedStationFile,
+            selectedServiceZoneFile: selectedDispatchPolicy === 'firebeats' ? selectedServiceZoneFile : undefined,
+            dispatchPolicy: selectedDispatchPolicy,
+            responseTime: parseInt(responseTime),
+            maxDistance: parseFloat(maxDistance),
+            options: {
+              coverageAnalysis: true,
+              responseTimeAnalysis: true,
+              resourceOptimization: false
+            }
+          },
+          
+          // New configuration (custom or optimized stations)
+          newConfig: {
+            stationData: selectedStationData,
+            dateRange: {
+              startDate: startDate ? startDate.toISOString() : null,
+              endDate: endDate ? endDate.toISOString() : null
+            },
+            models: {
+              incident: selectedIncidentModel,
+              travelTime: selectedTravelTimeModel,
+              serviceTime: selectedServiceTimeModel,
+              dispatch: selectedDispatchPolicy
+            },
+            selectedIncidentFile,
+            selectedStationFile,
+            selectedServiceZoneFile: selectedDispatchPolicy === 'firebeats' ? selectedServiceZoneFile : undefined,
+            dispatchPolicy: selectedDispatchPolicy,
+            stations: stations.map(station => {
+              const apparatusCounts = stationApparatusCounts.get(station.id);
+              const apparatus = apparatusCounts 
+                ? convertApparatusCountsToSimpleArray(apparatusCounts)
+                : []; 
+              return {
+                id: station.id,
+                name: station.displayName,
+                lat: station.lat,
+                lon: station.lon, 
+                apparatus: apparatus,
+                serviceZone: station.serviceZone, 
+              };
+            }),
+            responseTime: parseInt(responseTime),
+            maxDistance: parseFloat(maxDistance),
+            options: {
+              coverageAnalysis: true,
+              responseTimeAnalysis: true,
+              resourceOptimization: false
+            }
+          }
+        };
+
+        console.log('Sending counterfactual comparison request with payload:', comparisonPayload);
+        
+        const response = await fetch('http://localhost:9999/run-comparison', {
           method: 'POST',
           headers: {
-              'Content-Type': 'application/json',
+            'Content-Type': 'application/json',
           },
-          body: JSON.stringify(payload),
-          signal: signal // 3. Pass the AbortController signal to the fetch options
-      });
-      
-      // 4. Clear the timeout if the request completes successfully
-      clearTimeout(timeoutId); 
+          body: JSON.stringify(comparisonPayload),
+          signal: signal
+        });
 
-      if (!response.ok) {
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      const result = await response.json();
-      
-      // Calculate API call duration
-      const endTime = performance.now();
-      const apiCallDuration = (endTime - startTime) / 1000; 
-      
-      // Add timing to the result
-      result.api_call_duration = apiCallDuration;
-      
-      console.log('Simulation result:', result);
-      console.log(`API call took ${apiCallDuration.toFixed(2)} seconds`);
+        }
 
-      // Check if the status is success
-      if (result.status === 'success') {
-        if (onSimulationSuccess) {
+        const result = await response.json();
+        
+        // Calculate API call duration
+        const endTime = performance.now();
+        const apiCallDuration = (endTime - startTime) / 1000;
+        result.api_call_duration = apiCallDuration;
+        
+        console.log('Comparison result:', result);
+        console.log(`API call took ${apiCallDuration.toFixed(2)} seconds`);
+
+        // Store baseline results and trigger success callback with comparison data
+        if (result.status === 'success') {
+          if (result.baseline && onBaselineResultsChange) {
+            onBaselineResultsChange(result.baseline);
+          }
+          if (onSimulationSuccess) {
+            // Pass the entire result object which includes baseline, newConfig, and comparison
             onSimulationSuccess(result);
+          }
+        }
+
+      } else {
+        // Standard mode: call regular simulation endpoint
+        const payload = {
+          // Input configurations
+          stationData: selectedStationData,
+          dateRange: {
+            startDate: startDate ? startDate.toISOString() : null,
+            endDate: endDate ? endDate.toISOString() : null
+          },
+          
+          // Model configurations
+          models: {
+            incident: selectedIncidentModel,
+            travelTime: selectedTravelTimeModel,
+            serviceTime: selectedServiceTimeModel,
+            dispatch: selectedDispatchPolicy
+          },
+          
+          // Legacy fields for backward compatibility
+          selectedIncidentFile,
+          selectedStationFile,
+          selectedServiceZoneFile: selectedDispatchPolicy === 'firebeats' ? selectedServiceZoneFile : undefined,
+          dispatchPolicy: selectedDispatchPolicy,
+          
+          stations: stations.map(station => {
+            const apparatusCounts = stationApparatusCounts.get(station.id);
+            const apparatus = apparatusCounts 
+              ? convertApparatusCountsToSimpleArray(apparatusCounts)
+              : []; 
+            return {
+              id: station.id,
+              name: station.displayName,
+              lat: station.lat,
+              lon: station.lon, 
+              apparatus: apparatus,
+              serviceZone: station.serviceZone, 
+            };
+          }),
+          responseTime: parseInt(responseTime),
+          maxDistance: parseFloat(maxDistance),
+          options: {
+            coverageAnalysis: true,
+            responseTimeAnalysis: true,
+            resourceOptimization: false
+          }
+        };
+          
+        console.log('Sending simulation request with payload:', payload);
+        
+        const response = await fetch('http://localhost:9999/run-simulation2', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(payload),
+            signal: signal
+        });
+        
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const result = await response.json();
+        
+        // Calculate API call duration
+        const endTime = performance.now();
+        const apiCallDuration = (endTime - startTime) / 1000; 
+        
+        // Add timing to the result
+        result.api_call_duration = apiCallDuration;
+        
+        console.log('Simulation result:', result);
+        console.log(`API call took ${apiCallDuration.toFixed(2)} seconds`);
+
+        // Check if the status is success
+        if (result.status === 'success') {
+          if (onSimulationSuccess) {
+              onSimulationSuccess(result);
+          }
         }
       }
     } catch (error) {
@@ -710,31 +892,115 @@ export function ControlPanel({
   // Tab enabling logic should be handled in the parent component
 
   return (
-    <div className={`h-full bg-card border-r flex flex-col transition-all duration-300 ${isCollapsed ? 'w-12' : 'w-80'} flex-shrink-0`}>
-      <Card className="h-full border-0 rounded-none flex flex-col">
-        {/* Header - Fixed */}
-        <CardHeader className="flex-shrink-0 pb-4">
-          <CardTitle className="flex items-center justify-between">
-            {!isCollapsed && (
-              <div className="flex items-center gap-2">
-                <Settings className="w-5 h-5" />
-                Simulation Controls
-              </div>
-            )}
-            <Button
-              variant="ghost"
-              size="sm"
+    <div style={{ flex: '1 1 0%', overflowY: 'auto', minHeight: 0, position: 'relative' }}>
+      {/* Disabled overlay when simulating */}
+      {isSimulating && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '320px',
+          height: '100vh',
+          backgroundColor: 'rgba(255, 255, 255, 0.9)',
+          zIndex: 1000,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'not-allowed'
+        }}>
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-lg font-semibold text-gray-700">
+              {isCounterfactualMode ? 'Running Comparison...' : 'Running Simulation...'}
+            </p>
+            <p className="text-sm text-gray-500 mt-2">Please wait</p>
+          </div>
+        </div>
+      )}
+      
+      <Card 
+        className="border-0 rounded-none flex flex-col" 
+        style={{ 
+          minHeight: '100%',
+          borderTop: isCounterfactualMode ? '3px solid #3b82f6' : 'none'
+        }}
+      >
+        {/* Header - Fixed with Collapse Button */}
+        <CardHeader 
+          className="flex-shrink-0 pb-4"
+          style={{
+            backgroundColor: isCounterfactualMode ? '#eff6ff' : 'transparent',
+            transition: 'background-color 0.3s ease'
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+            <CardTitle className="flex items-center gap-2">
+              <Settings className="w-5 h-5" />
+              Simulation Controls
+            </CardTitle>
+            <button
               onClick={onToggleCollapse}
-              className="p-1 h-8 w-8"
+              style={{
+                padding: '0.5rem',
+                border: '1px solid #e5e7eb',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                backgroundColor: '#ffffff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
             >
-              {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+          </div>
+          
+          {/* Mode Toggle */}
+          <div className="mt-4 p-3 bg-white rounded-lg border border-gray-200 shadow-sm">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <GitCompare className={`w-4 h-4 ${isCounterfactualMode ? 'text-blue-600' : 'text-gray-400'}`} />
+                <span className="text-sm font-medium">
+                  {isCounterfactualMode ? 'Counterfactual Mode' : 'Standard Mode'}
+                </span>
+              </div>
+              <Switch
+                checked={isCounterfactualMode}
+                onCheckedChange={(checked) => {
+                  console.log('Switch toggled, new value:', checked);
+                  if (onCounterfactualModeChange) {
+                    console.log('Calling onCounterfactualModeChange with:', checked);
+                    onCounterfactualModeChange(checked);
+                  } else {
+                    console.error('onCounterfactualModeChange is not defined!');
+                  }
+                }}
+              />
+            </div>
+            {/* Debug button - can be removed after testing */}
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-full text-xs"
+              onClick={() => {
+                console.log('Debug button clicked, current mode:', isCounterfactualMode);
+                if (onCounterfactualModeChange) {
+                  onCounterfactualModeChange(!isCounterfactualMode);
+                }
+              }}
+            >
+              {isCounterfactualMode ? 'Switch to Standard Mode' : 'Switch to Counterfactual Mode'}
             </Button>
-          </CardTitle>
+            {isCounterfactualMode && (
+              <p className="text-xs text-blue-600 mt-2">
+                📊 Compare response metrics with hypothetical station placement
+              </p>
+            )}
+          </div>
         </CardHeader>
 
-        {/* Scrollable Content - Only show when not collapsed */}
-        {!isCollapsed && (
-          <CardContent className="flex-1 overflow-y-auto space-y-6">
+        {/* Scrollable Content */}
+        <CardContent className="space-y-6 pb-6">
           {/* Clear Settings Button */}
           <div className="space-y-4">
             <Button
@@ -752,34 +1018,36 @@ export function ControlPanel({
           <div className="space-y-4">
             <h4 className="font-semibold text-gray-900">Input</h4>
             
-            {/* Station Data */}
-            <div>
-              <Label>Station Data</Label>
-              <div className="mt-2">
-                <select
-                  value={selectedStationData || ''}
-                  onChange={(e) => onStationDataChange?.(e.target.value)}
-                  className="w-full p-2 border rounded text-gray-400"
-                  style={{ color: selectedStationData ? '#111827' : '#9CA3AF' }}
-                >
-                  <option value="" disabled className="text-gray-400">Select station data</option>
-                  {controlPanelConfig.stationData.options.map((option) => (
-                    <option key={option.id} value={option.id}>
-                      {option.name}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-xs text-gray-500 mt-1">
-                  {selectedStationData 
-                    ? controlPanelConfig.stationData.options.find(opt => opt.id === selectedStationData)?.description
-                    : 'Select station data'
-                  }
-                </p>
+            {/* Station Data - Hidden in Counterfactual Mode */}
+            {!isCounterfactualMode && (
+              <div>
+                <Label>Station Data</Label>
+                <div className="mt-2">
+                  <select
+                    value={selectedStationData || ''}
+                    onChange={(e) => onStationDataChange?.(e.target.value)}
+                    className="w-full p-2 border rounded text-gray-400"
+                    style={{ color: selectedStationData ? '#111827' : '#9CA3AF' }}
+                  >
+                    <option value="" disabled className="text-gray-400">Select station data</option>
+                    {controlPanelConfig.stationData.options.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.name}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {selectedStationData 
+                      ? controlPanelConfig.stationData.options.find(opt => opt.id === selectedStationData)?.description
+                      : 'Select station data'
+                    }
+                  </p>
+                </div>
               </div>
-            </div>
+            )}
 
-            {/* Optimized Stations Options - Show only when optimized_stations is selected */}
-            {selectedStationData === 'optimized_stations' && (
+            {/* Optimized Stations Options - Show when optimized_stations is selected in either mode */}
+            {selectedStationData === 'optimized_stations' && !isCounterfactualMode && (
               <div className="space-y-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
                 <h5 className="font-medium text-blue-900">Optimization Parameters</h5>
                 
@@ -827,6 +1095,111 @@ export function ControlPanel({
                       Additional optimized stations (1 Engine + 1 Ambulance each)
                     </p>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* Counterfactual Mode: Configuration */}
+            {isCounterfactualMode && (
+              <div className="space-y-3 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <div className="flex items-center gap-2">
+                  <GitCompare className="w-4 h-4 text-blue-600" />
+                  <h5 className="font-medium text-blue-900">Counterfactual Analysis</h5>
+                </div>
+                <p className="text-xs text-blue-700">
+                  Compare baseline configuration against a hypothetical scenario.
+                </p>
+                <div className="space-y-3">
+                  <div className="bg-white p-2 rounded border border-blue-200">
+                    <p className="text-xs font-medium text-gray-700 mb-1">
+                      📍 Baseline (Fixed)
+                    </p>
+                    <p className="text-xs text-gray-600">
+                      Default Fire Stations
+                    </p>
+                  </div>
+                  
+                  <div>
+                    <Label className="text-xs font-medium text-gray-700">New Station Configuration</Label>
+                    <select
+                      value={selectedStationData || ''}
+                      onChange={(e) => onStationDataChange?.(e.target.value)}
+                      className="w-full p-2 border rounded text-sm mt-1"
+                      style={{ color: selectedStationData ? '#111827' : '#9CA3AF' }}
+                    >
+                      <option value="" disabled className="text-gray-400">Select configuration</option>
+                      <option value="custom_stations">Custom Stations Layout</option>
+                      <option value="optimized_stations">Optimized New Stations</option>
+                    </select>
+                    {selectedStationData === 'custom_stations' && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Add/move stations manually on the map
+                      </p>
+                    )}
+                    {selectedStationData === 'optimized_stations' && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Use algorithmically optimized station placements
+                      </p>
+                    )}
+                  </div>
+                  
+                  {/* Optimized Stations Parameters - Show when optimized is selected */}
+                  {selectedStationData === 'optimized_stations' && (
+                    <div className="space-y-3 p-3 bg-white rounded border border-blue-200">
+                      <h6 className="text-xs font-medium text-gray-700">Optimization Parameters</h6>
+                      
+                      {/* Grid Size Selection */}
+                      <div>
+                        <Label className="text-xs">Grid Size</Label>
+                        <div className="mt-1">
+                          <select
+                            value={selectedGridSize || '1_mile'}
+                            onChange={(e) => onGridSizeChange?.(e.target.value)}
+                            className="w-full p-2 border rounded text-sm"
+                          >
+                            <option value="0.5_mile">0.5 Mile Grid</option>
+                            <option value="1_mile">1 Mile Grid</option>
+                          </select>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Grid resolution for station optimization
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Number of New Stations */}
+                      <div>
+                        <Label className="text-xs">Number of New Stations</Label>
+                        <div className="mt-1">
+                          <select
+                            value={selectedNewStations || 1}
+                            onChange={(e) => onNewStationsChange?.(parseInt(e.target.value))}
+                            className="w-full p-2 border rounded text-sm"
+                          >
+                            {(() => {
+                              const optimizedOption = controlPanelConfig.stationData.options.find(opt => opt.id === 'optimized_stations');
+                              const currentGrid = optimizedOption?.gridSizes?.find(grid => grid.id === (selectedGridSize || '1_mile'));
+                              const maxStations = currentGrid?.maxNewStations || 5;
+                              
+                              return Array.from({ length: maxStations }, (_, i) => i + 1).map(num => (
+                                <option key={num} value={num}>
+                                  {num} New Station{num > 1 ? 's' : ''}
+                                </option>
+                              ));
+                            })()}
+                          </select>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Additional optimized stations (1 Engine + 1 Ambulance each)
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {baselineResults && (
+                    <div className="text-xs text-green-700 bg-green-50 p-2 rounded border border-green-200">
+                      ✓ Baseline captured: {baselineResults.total_incidents || 0} incidents
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -1179,24 +1552,37 @@ export function ControlPanel({
           </div>
 
           <Separator /> */}
+          
+          <Separator />
 
           {/* Run Simulation Button */}
           <div className="pt-4 space-y-3">
             <Button
               onClick={handleRunSimulation}
               disabled={isSimulating || !isFormValid()}
-              className={`w-full h-12 ${!isFormValid() && !isSimulating ? 'opacity-50 cursor-not-allowed' : ''}`}
+              className="w-full h-12 font-semibold"
+              style={{
+                backgroundColor: !isFormValid() && !isSimulating 
+                  ? '#d1d5db' 
+                  : isCounterfactualMode 
+                    ? '#2563eb' 
+                    : '#16a34a',
+                color: 'white',
+                border: !isFormValid() && !isSimulating ? '2px solid #9ca3af' : 'none',
+                opacity: !isFormValid() && !isSimulating ? 0.7 : 1,
+                cursor: !isFormValid() && !isSimulating ? 'not-allowed' : 'pointer'
+              }}
               size="lg"
             >
               {isSimulating ? (
                 <>
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  SIMULATING...
+                  {isCounterfactualMode ? 'RUNNING COMPARISON...' : 'SIMULATING...'}
                 </>
               ) : (
                 <>
-                  <Play className="w-4 h-4 mr-2" />
-                  RUN SIMULATION
+                  {isCounterfactualMode ? <GitCompare className="w-4 h-4 mr-2" /> : <Play className="w-4 h-4 mr-2" />}
+                  {isCounterfactualMode ? 'RUN COMPARISON' : 'RUN SIMULATION'}
                 </>
               )}
             </Button>
@@ -1204,11 +1590,11 @@ export function ControlPanel({
             {/* Validation message area with consistent height */}
             <div className="min-h-[3rem] flex items-center justify-center">
               {!isFormValid() && !isSimulating && (
-                <div className="text-xs text-gray-500 text-center">
-                  <div className="text-red-500 font-medium">
-                    Missing:
+                <div className="text-xs text-center">
+                  <div className="text-red-600 font-semibold bg-red-50 border border-red-200 rounded p-2">
+                    <p className="font-bold mb-1">Missing Required Fields:</p>
                     {getMissingFields().map((field, index) => (
-                      <p key={index} className="mt-1">{field}</p>
+                      <p key={index} className="mt-1">• {field}</p>
                     ))}
                   </div>
                 </div>
@@ -1227,8 +1613,7 @@ export function ControlPanel({
               SAVE STATION CONFIG
             </Button>
           </div>
-          </CardContent>
-        )}
+        </CardContent>
       </Card>
     </div>
   );

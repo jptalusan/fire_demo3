@@ -59,6 +59,8 @@ interface MapSectionProps {
   incidents?: any[]; // Incidents passed from parent component
   onIncidentsCountChange?: (count: number) => void;
   onClearLayers?: () => void;
+  onMapInstanceChange?: (map: L.Map | null) => void;
+  isCounterfactualMode?: boolean;
 }
 
 interface FireStation {
@@ -99,12 +101,18 @@ export function MapSection({
   endDate,
   incidents: externalIncidents = [],
   onIncidentsCountChange,
-  onClearLayers
+  onClearLayers,
+  onMapInstanceChange,
+  isCounterfactualMode = false
 }: MapSectionProps) {
   const [incidents, setIncidents] = useState<ProcessedIncident[]>([]);
   const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
   const [isLoadingIncidents, setIsLoadingIncidents] = useState(false);
   const [isLoadingStations, setIsLoadingStations] = useState(false);
+  
+  // Refs to access current state in drag handlers
+  const stationInitialZonesRef = useRef<Map<string, any>>(new Map());
+  const zoneGeometriesRef = useRef<L.GeoJSON | null>(null);
 
   // Sync external incidents with internal state
   useEffect(() => {
@@ -157,6 +165,19 @@ export function MapSection({
   const [showIncidents, setShowIncidents] = useState(true);
   const [currentStationData, setCurrentStationData] = useState<string>('');
   const [isAddingStation, setIsAddingStation] = useState(false);
+  
+  // Track zone geometries and station initial zones for drag restrictions
+  const [zoneGeometries, setZoneGeometries] = useState<L.GeoJSON | null>(null);
+  const [stationInitialZones, setStationInitialZones] = useState<Map<string, any>>(new Map());
+  
+  // Update refs when state changes
+  useEffect(() => {
+    zoneGeometriesRef.current = zoneGeometries;
+  }, [zoneGeometries]);
+  
+  useEffect(() => {
+    stationInitialZonesRef.current = stationInitialZones;
+  }, [stationInitialZones]);
 
   // Caches and refs to avoid duplicate/network-heavy loads
   const jsonCacheRef = useRef<Map<string, any>>(new Map());
@@ -906,6 +927,81 @@ export function MapSection({
     console.log(`Successfully deleted station with ID: ${stationId}`);
   }, [stations, stationMarkers, markerLayer, onStationsChange, reassignStationIds]);
 
+  // Helper function to find which zone contains a point
+  const findZoneContainingPoint = useCallback((latlng: L.LatLng): any => {
+    if (!zoneGeometries) {
+      console.log('No zone geometries available');
+      return null;
+    }
+    
+    let containingZone: any = null;
+    let layerCount = 0;
+    
+    zoneGeometries.eachLayer((layer: any) => {
+      layerCount++;
+      if (layer.feature && layer.feature.geometry) {
+        // Use Leaflet's built-in contains method for polygons
+        if (layer.getBounds && layer.getBounds().contains(latlng)) {
+          // More precise check using the actual geometry
+          const point = L.latLng(latlng.lat, latlng.lng);
+          
+          // For MultiPolygon or Polygon
+          if (layer.feature.geometry.type === 'Polygon' || layer.feature.geometry.type === 'MultiPolygon') {
+            // Use leaflet-pip or manual point-in-polygon check
+            // Simple bounds check for now, can be enhanced with proper point-in-polygon
+            const coordinates = layer.feature.geometry.coordinates;
+            if (isPointInGeoJSONPolygon(point, coordinates, layer.feature.geometry.type)) {
+              containingZone = layer.feature;
+              console.log('Found containing zone for point:', latlng, 'Zone properties:', layer.feature.properties);
+            }
+          }
+        }
+      }
+    });
+    
+    console.log(`Checked ${layerCount} zone layers for point`, latlng);
+    
+    return containingZone;
+  }, [zoneGeometries]);
+
+  // Simple point-in-polygon check for GeoJSON coordinates
+  const isPointInGeoJSONPolygon = (point: L.LatLng, coordinates: any, geometryType: string): boolean => {
+    // For Polygon
+    if (geometryType === 'Polygon') {
+      return checkPointInRing(point, coordinates[0]); // Check outer ring
+    }
+    
+    // For MultiPolygon
+    if (geometryType === 'MultiPolygon') {
+      for (const polygon of coordinates) {
+        if (checkPointInRing(point, polygon[0])) {
+          return true;
+        }
+      }
+    }
+    
+    return false;
+  };
+
+  // Ray casting algorithm for point-in-polygon
+  const checkPointInRing = (point: L.LatLng, ring: number[][]): boolean => {
+    let inside = false;
+    const x = point.lng;
+    const y = point.lat;
+    
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const xi = ring[i][0], yi = ring[i][1];
+      const xj = ring[j][0], yj = ring[j][1];
+      
+      const intersect = ((yi > y) !== (yj > y))
+        && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+      
+      if (intersect) inside = !inside;
+    }
+    
+    return inside;
+  };
+
   // Handle adding a new station at the clicked location
   const handleAddNewStation = useCallback((lat: number, lng: number) => {
     if (selectedStationData !== 'custom_stations') {
@@ -924,6 +1020,18 @@ export function MapSection({
     
     const maxStationNumber = existingStationNumbers.length > 0 ? Math.max(...existingStationNumbers) : 0;
     const newStationNumber = maxStationNumber + 1;
+    
+    // Find which zone contains this point
+    const latlng = L.latLng(lat, lng);
+    console.log('Adding new station at:', latlng, 'Zone geometries available:', !!zoneGeometriesRef.current);
+    const containingZone = findZoneContainingPoint(latlng);
+    console.log('Containing zone found:', !!containingZone);
+    
+    if (!containingZone) {
+      console.warn('Cannot add station - no zone found at this location. Make sure zones are loaded.');
+      alert('Cannot add station at this location. No service zone found. Make sure you are clicking within a zone boundary.');
+      return;
+    }
     
     // Create new station object with temporary ID (will be reassigned)
     const newStation: ProcessedStation = {
@@ -957,6 +1065,28 @@ export function MapSection({
     const updatedStations = [...stations, newStation];
     const stationsWithNewIds = reassignStationIds(updatedStations);
     onStationsChange(stationsWithNewIds);
+    
+    // Store the initial zone for this station (use temporary ID for now, will update after reassignment)
+    if (containingZone) {
+      setStationInitialZones(prev => {
+        const newMap = new Map(prev);
+        newMap.set('temp', containingZone);
+        return newMap;
+      });
+      
+      // Update with the correct ID after reassignment
+      setTimeout(() => {
+        const newStationFinalId = (updatedStations.length - 1).toString();
+        setStationInitialZones(prev => {
+          const newMap = new Map(prev);
+          if (newMap.has('temp')) {
+            newMap.set(newStationFinalId, newMap.get('temp'));
+            newMap.delete('temp');
+          }
+          return newMap;
+        });
+      }, 100);
+    }
 
     // Set default apparatus for the new station (will have the last ID after reassignment)
     const newStationFinalId = (updatedStations.length - 1).toString();
@@ -1004,7 +1134,7 @@ export function MapSection({
     
     // Exit add station mode
     setIsAddingStation(false);
-  }, [selectedStationData, stations, onStationsChange, reassignStationIds]);
+  }, [selectedStationData, stations, onStationsChange, reassignStationIds, findZoneContainingPoint]);
 
   // Stabilize global delete handler: register once and reference latest via ref
   const deleteHandlerRef = useRef(handleStationDelete);
@@ -1065,17 +1195,21 @@ export function MapSection({
   // Load service zones (GeoJSON polygons)
   useEffect(() => {
     const loadServiceZones = async () => {
-      if (!selectedServiceZoneFile || !serviceZoneLayer) {
+      // Use default zone file if none is selected
+      const zoneFile = selectedServiceZoneFile || 'beats_shpfile_merged.geojson';
+      
+      if (!zoneFile || !serviceZoneLayer) {
         // Clear service zones if no file selected
         if (serviceZoneLayer) {
           serviceZoneLayer.clearLayers();
+          setZoneGeometries(null);
         }
         return;
       }
 
       try {
-        console.log('Loading service zones from:', `/data/${selectedServiceZoneFile}`);
-        const response = await fetch(`/data/${selectedServiceZoneFile}`);
+        console.log('Loading service zones from:', `/data/${zoneFile}`);
+        const response = await fetch(`/data/${zoneFile}`);
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -1110,8 +1244,18 @@ export function MapSection({
           }
         });
 
-        geoJsonLayer.addTo(serviceZoneLayer);
-        console.log('Service zones added to map');
+        // Only add to map layer if in custom stations mode or if a zone file was explicitly selected
+        if (selectedStationData === 'custom_stations' || selectedServiceZoneFile) {
+          geoJsonLayer.addTo(serviceZoneLayer);
+          console.log('Service zones added to map (visible)');
+        } else {
+          console.log('Service zones loaded but not displayed (zone assignment only)');
+        }
+        
+        // Always store zone geometries for zone assignment (even if not visible)
+        setZoneGeometries(geoJsonLayer);
+        
+        console.log('Service zones loaded');
 
       } catch (error) {
         console.error('Error loading service zones:', error);
@@ -1119,7 +1263,7 @@ export function MapSection({
     };
 
     loadServiceZones();
-  }, [selectedServiceZoneFile, serviceZoneLayer]);
+  }, [selectedServiceZoneFile, serviceZoneLayer, selectedStationData]);
 
   // Helper function to filter incidents by date range
   const filterIncidentsByDateRange = useCallback((incidents: any[], startDate?: Date, endDate?: Date) => {
@@ -1241,6 +1385,11 @@ export function MapSection({
 
     // Store map instance in state
     setMapInstance(map);
+    
+    // Notify parent component
+    if (onMapInstanceChange) {
+      onMapInstanceChange(map);
+    }
 
     // Initialize service zone layer
     const newServiceZoneLayer = L.layerGroup().addTo(map);
@@ -1261,6 +1410,7 @@ export function MapSection({
 
     // Add click handler for adding new stations
     mapInstance.on('click', (e: L.LeafletMouseEvent) => {
+      // Handle custom station placement (works in both standard and counterfactual mode)
       if (isAddingStation && selectedStationData === 'custom_stations') {
         handleAddNewStation(e.latlng.lat, e.latlng.lng);
       }
@@ -1277,6 +1427,25 @@ export function MapSection({
       setIsAddingStation(false);
     }
   }, [selectedStationData, isAddingStation]);
+
+  // Disable zone layer interactions when in add station mode by temporarily removing from map
+  useEffect(() => {
+    if (!serviceZoneLayer || !mapInstance) return;
+
+    if (isAddingStation) {
+      // Remove the service zone layer from the map to prevent interactions
+      console.log('Removing service zone layer for add station mode');
+      if (mapInstance.hasLayer(serviceZoneLayer)) {
+        mapInstance.removeLayer(serviceZoneLayer);
+      }
+    } else {
+      // Re-add the service zone layer to the map
+      console.log('Re-adding service zone layer');
+      if (!mapInstance.hasLayer(serviceZoneLayer)) {
+        mapInstance.addLayer(serviceZoneLayer);
+      }
+    }
+  }, [isAddingStation, serviceZoneLayer, mapInstance]);
 
   // Update map cursor style when add station mode changes
   useEffect(() => {
@@ -1301,6 +1470,11 @@ export function MapSection({
 
     // Re-render markers when incidents or stations change
     if (markerLayer) {
+        // Wait for zones to be loaded before rendering markers if zones are selected
+        if (selectedServiceZoneFile && !zoneGeometries) {
+          console.log('Waiting for zones to load before rendering station markers...');
+          return;
+        }
         markerLayer.clearLayers();
         setStationMarkers(new Map()); // Clear tracked markers
 
@@ -1315,12 +1489,14 @@ export function MapSection({
               weight: 2,
               opacity: 1,
               fillOpacity: 0.8,
+              interactive: false, // Make non-interactive for performance
               // @ts-ignore - Add custom property to identify incident markers
               isIncidentMarker: true
             });
 
             marker.addTo(markerLayer);
-            marker.bindPopup(createIncidentPopup(incident));
+            // Don't bind popup for performance - incidents are non-interactive
+            // marker.bindPopup(createIncidentPopup(incident));
           });
         }
 
@@ -1335,11 +1511,73 @@ export function MapSection({
           
           let marker: L.Marker;
           
+          // Store initial zone for all stations if zones are loaded (not just custom stations)
+          if (zoneGeometries && !stationInitialZones.has(station.id)) {
+            const latlng = L.latLng(station.lat, station.lon);
+            const containingZone = findZoneContainingPoint(latlng);
+            console.log(`Station ${station.id} (${station.name}) initial zone:`, containingZone ? 'Found' : 'Not found', latlng);
+            if (containingZone) {
+              console.log(`Zone properties:`, containingZone.properties);
+              setStationInitialZones(prev => {
+                const newMap = new Map(prev);
+                newMap.set(station.id, containingZone);
+                console.log(`Stored initial zone for station ${station.id}. Total zones stored:`, newMap.size);
+                return newMap;
+              });
+            }
+          }
+          
           if (isDraggable) {
+            
             // Create custom drag handlers that update the shared state
             const customDragHandlers = {
               ...defaultDragHandlers,
+              onDrag: (marker: L.Marker, station: ProcessedStation) => {
+                // Check if new position is within the initial zone
+                const newLatLng = marker.getLatLng();
+                const initialZone = stationInitialZonesRef.current.get(station.id);
+                
+                console.log(`Dragging station ${station.id}, has initial zone:`, !!initialZone);
+                
+                if (initialZone) {
+                  const isInZone = isPointInGeoJSONPolygon(
+                    newLatLng,
+                    initialZone.geometry.coordinates,
+                    initialZone.geometry.type
+                  );
+                  
+                  console.log(`Station ${station.id} is in zone:`, isInZone);
+                  
+                  if (!isInZone) {
+                    console.log(`Reverting station ${station.id} to original position`);
+                    // Revert to last valid position
+                    marker.setLatLng([station.lat, station.lon]);
+                  }
+                }
+                
+                // Call original onDrag handler
+                if (defaultDragHandlers.onDrag) {
+                  defaultDragHandlers.onDrag(marker, station);
+                }
+              },
               onStationUpdate: (updatedStation: ProcessedStation) => {
+                // Verify final position is within initial zone before updating
+                const latlng = L.latLng(updatedStation.lat, updatedStation.lon);
+                const initialZone = stationInitialZonesRef.current.get(updatedStation.id);
+                
+                if (initialZone) {
+                  const isInZone = isPointInGeoJSONPolygon(
+                    latlng,
+                    initialZone.geometry.coordinates,
+                    initialZone.geometry.type
+                  );
+                  
+                  if (!isInZone) {
+                    console.log(`Station ${updatedStation.id} cannot be moved outside its initial zone`);
+                    return; // Don't update if outside zone
+                  }
+                }
+                
                 // Update the shared state - marker position is already updated by Leaflet
                 const updatedStations = stations.map(s => 
                   s.id === updatedStation.id ? updatedStation : s
@@ -1356,29 +1594,47 @@ export function MapSection({
 
           marker.addTo(markerLayer);
           
+          // Get zone information for this station
+          const getZoneInfo = (stationId: string): string => {
+            const zoneData = stationInitialZonesRef.current.get(stationId);
+            if (!zoneData || !zoneData.properties) return '';
+            
+            // Extract useful zone properties
+            const props = zoneData.properties;
+            const zoneFields: string[] = [];
+            
+            // Common zone property names
+            if (props.name) zoneFields.push(props.name);
+            else if (props.NAME) zoneFields.push(props.NAME);
+            else if (props.zone) zoneFields.push(props.zone);
+            else if (props.ZONE) zoneFields.push(props.ZONE);
+            else if (props.beat) zoneFields.push(`Beat ${props.beat}`);
+            else if (props.BEAT) zoneFields.push(`Beat ${props.BEAT}`);
+            else if (props.id) zoneFields.push(`Zone ${props.id}`);
+            else if (props.ID) zoneFields.push(`Zone ${props.ID}`);
+            
+            return zoneFields.length > 0 ? zoneFields.join(' - ') : 'Zone detected';
+          };
+          
           // Bind the correct popup based on dispatch policy
+          const zoneInfo = getZoneInfo(station.id);
           const popupContent = selectedDispatchPolicy === 'firebeats'
             ? createFirebeatsStationPopup(station, selectedStationData)
-            : createDetailedStationPopup(station, undefined, selectedStationData);
+            : createDetailedStationPopup(station, undefined, selectedStationData, zoneInfo);
           
           marker.bindPopup(popupContent);
 
           // Refresh popup content when it opens to ensure it's up-to-date
           marker.on('popupopen', () => {
             const freshStationData = stations.find(s => s.id === station.id) || station;
+            const freshZoneInfo = getZoneInfo(freshStationData.id);
             const freshPopupContent = selectedDispatchPolicy === 'firebeats'
               ? createFirebeatsStationPopup(freshStationData, selectedStationData)
-              : createDetailedStationPopup(freshStationData, undefined, selectedStationData);
+              : createDetailedStationPopup(freshStationData, undefined, selectedStationData, freshZoneInfo);
             marker.setPopupContent(freshPopupContent);
 
-            // Auto-open apparatus manager sidebar when popup opens
+            // Set the selected station (but don't auto-open apparatus manager)
             setSelectedStationForApparatus(freshStationData);
-            setApparatusManagerOpen(true);
-          });
-
-          // Auto-close apparatus manager when popup closes
-          marker.on('popupclose', () => {
-            setApparatusManagerOpen(false);
           });
           
           // Track the marker
@@ -1390,7 +1646,7 @@ export function MapSection({
           setStationMarkers(new Map());
         }
       }
-  }, [incidents, stations, markerLayer, selectedDispatchPolicy, onStationsChange, showStations, showIncidents]);
+  }, [incidents, stations, markerLayer, selectedDispatchPolicy, onStationsChange, showStations, showIncidents, selectedStationData, zoneGeometries, stationInitialZones, findZoneContainingPoint, selectedServiceZoneFile]);
 
   // Debug logging removed to reduce noise during interactions
 
@@ -1401,6 +1657,19 @@ export function MapSection({
         id="map" 
         className="h-full w-full absolute inset-0"
       />
+      
+      {/* Counterfactual Mode Banner */}
+      {isCounterfactualMode && (
+        <div 
+          className="absolute top-4 left-1/2 transform -translate-x-1/2 z-[1000] bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2"
+          style={{ pointerEvents: 'none' }}
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5z"/>
+          </svg>
+          <span className="font-semibold">Counterfactual Mode Active - Use Custom Stations to add test stations</span>
+        </div>
+      )}
       
       {/* Loading Overlay */}
       {(isLoadingIncidents || isLoadingStations) && (
@@ -1501,9 +1770,25 @@ export function MapSection({
       
       {/* Apparatus Manager Sidebar */}
       {apparatusManagerOpen && selectedStationForApparatus && (
-        <div className="absolute top-0 right-0 w-80 h-full bg-white border-l border-gray-300 shadow-lg overflow-y-auto" style={{zIndex: 1000}}>
-          <div className="p-4">
-            <div className="flex justify-between items-center mb-4">
+        <div style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          bottom: 0,
+          width: '320px',
+          backgroundColor: 'white',
+          borderRight: '1px solid #d1d5db',
+          boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+          display: 'flex',
+          flexDirection: 'column',
+          zIndex: 1000
+        }}>
+          <div style={{
+            padding: '1rem',
+            flexShrink: 0,
+            borderBottom: '1px solid #e5e7eb'
+          }}>
+            <div className="flex justify-between items-center">
               <h3 className="text-lg font-semibold text-gray-900">
                 {selectedStationForApparatus.displayName} - Apparatus
               </h3>
@@ -1514,7 +1799,16 @@ export function MapSection({
                 ×
               </button>
             </div>
-            
+          </div>
+          
+          {/* Scrollable content area */}
+          <div style={{
+            flex: '1 1 0%',
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            minHeight: 0,
+            padding: '0 1rem 1rem 1rem'
+          }}>
             <div className="space-y-4">
               <div className="text-sm text-gray-600 mb-4">
                 <p><strong>Address:</strong> {selectedStationForApparatus.address}</p>

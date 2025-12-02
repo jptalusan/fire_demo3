@@ -81,7 +81,7 @@
         "name": "OSRM-based Travel Times",
         "source": "calculation",
         "endpoint": null,
-        "description": "Straight-line distance calculation",
+        "description": "Road network-based travel time calculation",
         "formula": "sqrt((x2-x1)^2 + (y2-y1)^2)"
       },
       {
@@ -110,7 +110,7 @@
         "name": "Machine Learning Model",
         "source": "constant",
         "endpoint": null,
-        "description": "Constant service duration",
+        "description": "ML-Based Predicted Service Time",
         "defaultValue": 30,
         "unit": "minutes"
       },

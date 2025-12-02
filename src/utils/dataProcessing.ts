@@ -14,10 +14,16 @@ export interface ProcessedStation {
   address: string;
   lat: number;
   lon: number;
+  lng?: number; // Alternative to lon for consistency with ghost stations
   stationNumber: number;
   displayName: string;
   apparatus: Apparatus[]; // Updated to use Apparatus interface
   serviceZone?: string; // Optional service zone for firebeats
+  isGhost?: boolean; // Flag for ghost stations in counterfactual mode
+  city?: string; // Additional fields for ghost stations
+  state?: string;
+  zip?: string;
+  resources?: string[];
 }
 
 export interface ProcessedIncident {
@@ -302,7 +308,7 @@ export function createStationPopup(station: ProcessedStation): string {
  * @param selectedStationData - Current station dataset to determine if delete should be enabled
  * @returns HTML string for the detailed popup
  */
-export function createDetailedStationPopup(station: ProcessedStation, onDelete?: () => void, selectedStationData?: string): string {
+export function createDetailedStationPopup(station: ProcessedStation, onDelete?: () => void, selectedStationData?: string, zoneInfo?: string): string {
   const apparatusList = station.apparatus.map(app => `<li style="margin: 2px 0;">${app}</li>`).join('');
   
   return `
@@ -311,6 +317,15 @@ export function createDetailedStationPopup(station: ProcessedStation, onDelete?:
         <h3 style="margin: 0; color: #dc2626; font-size: 16px;">${station.displayName}</h3>
         <p style="margin: 4px 0 0 0; color: #666; font-size: 12px;">${station.address}</p>
       </div>
+      
+      ${zoneInfo ? `
+      <div style="margin-bottom: 12px;">
+        <h4 style="margin: 0 0 4px 0; font-size: 14px; color: #333;">Zone:</h4>
+        <p style="margin: 0; padding: 6px 8px; background-color: #eff6ff; border-left: 3px solid #3b82f6; font-size: 13px; color: #1e40af; border-radius: 2px;">
+          ${zoneInfo}
+        </p>
+      </div>
+      ` : ''}
       
       <div style="margin-bottom: 12px;">
         <h4 style="margin: 0 0 4px 0; font-size: 14px; color: #333;">Apparatus:</h4>

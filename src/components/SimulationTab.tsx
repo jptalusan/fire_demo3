@@ -1,7 +1,7 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
 import { Badge } from './ui/badge';
-import { AlertTriangle, CheckCircle, Clock, MapPin, AlertTriangle as Triangle, BarChart3, TrendingUp } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Clock, MapPin, AlertTriangle as Triangle, BarChart3, TrendingUp, GitCompare, ArrowDown, ArrowUp } from 'lucide-react';
 import { SimulationPlotsContainer } from './SimulationPlots';
 import { processStationReport, StationReport } from '../utils/dataProcessing';
 
@@ -9,9 +9,75 @@ interface SimulationTabProps {
   hasResults: boolean;
   simulationResults: any;
   incidentsCount?: number;
+  isCounterfactualMode?: boolean;
+  baselineResults?: any;
 }
 
-export function SimulationTab({ hasResults, simulationResults, incidentsCount }: SimulationTabProps) {
+// Comparative Metric Card Component
+interface ComparativeMetricCardProps {
+  title: string;
+  icon: React.ReactNode;
+  baselineValue: number;
+  newValue: number;
+  unit: string;
+  format?: (value: number) => string;
+  lowerIsBetter?: boolean;
+}
+
+function ComparativeMetricCard({ 
+  title, 
+  icon, 
+  baselineValue, 
+  newValue, 
+  unit, 
+  format = (v) => v.toFixed(2),
+  lowerIsBetter = true
+}: ComparativeMetricCardProps) {
+  const delta = newValue - baselineValue;
+  const percentChange = baselineValue !== 0 ? ((delta / baselineValue) * 100) : 0;
+  
+  // Determine if this is an improvement
+  const isImprovement = lowerIsBetter ? delta < 0 : delta > 0;
+  const isNeutral = Math.abs(delta) < 0.01;
+  
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium">{title}</CardTitle>
+        {icon}
+      </CardHeader>
+      <CardContent>
+        <div className="text-2xl font-bold mb-2">
+          {format(newValue)} {unit}
+        </div>
+        {!isNeutral && (
+          <div className={`flex items-center gap-1 text-sm font-medium ${
+            isImprovement ? 'text-green-600' : 'text-red-600'
+          }`}>
+            {delta > 0 ? (
+              <ArrowUp className="w-4 h-4" />
+            ) : (
+              <ArrowDown className="w-4 h-4" />
+            )}
+            <span>
+              {Math.abs(delta).toFixed(2)} {unit} ({Math.abs(percentChange).toFixed(1)}%)
+            </span>
+          </div>
+        )}
+        {isNeutral && (
+          <div className="flex items-center gap-1 text-sm font-medium text-gray-500">
+            <span>No change</span>
+          </div>
+        )}
+        <div className="text-xs text-muted-foreground mt-1">
+          Baseline: {format(baselineValue)} {unit}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+export function SimulationTab({ hasResults, simulationResults, incidentsCount, isCounterfactualMode = false, baselineResults }: SimulationTabProps) {
   // Helper function to format time in minutes and seconds
   const formatTravelTime = (seconds: number): string => {
     const minutes = Math.floor(seconds / 60);
@@ -27,78 +93,162 @@ export function SimulationTab({ hasResults, simulationResults, incidentsCount }:
     return { status: 'Needs Improvement', color: 'text-red-600' };
   };
 
-  // Process station report data if available
-  const stationReports: StationReport[] = simulationResults?.station_report 
-    ? processStationReport(simulationResults.station_report)
+  // Process station report data if available - handle both regular and comparison results
+  const resultsData = simulationResults?.newConfig || simulationResults;
+  const stationReports: StationReport[] = resultsData?.station_report 
+    ? processStationReport(resultsData.station_report)
     : [];
 
   return (
     <div className="h-full overflow-auto space-y-4 p-4">
       {hasResults ? (
         <div className="space-y-4">
-          {/* KPI Cards moved from Statistics */}
-          <div className="grid grid-cols-4 gap-3">
+          {/* Counterfactual Mode: Comparative Analysis */}
+          {isCounterfactualMode && baselineResults && simulationResults ? (
+            <div className="space-y-4">
+              <Card className="bg-blue-50 border-blue-200">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-blue-900">
+                    <GitCompare className="w-5 h-5" />
+                    Counterfactual Analysis: Performance Comparison
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-blue-700">
+                    Comparing baseline configuration vs. hypothetical scenario with ghost stations
+                  </p>
+                </CardContent>
+              </Card>
+
+              {/* Comparative Metrics Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <ComparativeMetricCard
+                  title="Avg Response Time"
+                  icon={<Clock className="h-4 w-4 text-muted-foreground" />}
+                  baselineValue={Number(baselineResults.average_response_time) || 0}
+                  newValue={Number(resultsData.average_response_time) || 0}
+                  unit="sec"
+                  lowerIsBetter={true}
+                />
+                
+                <ComparativeMetricCard
+                  title="P90 Response Time"
+                  icon={<Clock className="h-4 w-4 text-muted-foreground" />}
+                  baselineValue={Number(baselineResults.P90_continuous) || 0}
+                  newValue={Number(resultsData.P90_continuous) || 0}
+                  unit="sec"
+                  lowerIsBetter={true}
+                />
+                
+                <ComparativeMetricCard
+                  title="On-Time Rate"
+                  icon={<MapPin className="h-4 w-4 text-muted-foreground" />}
+                  baselineValue={parseFloat(String(baselineResults.coverage_percent).replace('%', '')) || 0}
+                  newValue={parseFloat(String(resultsData.coverage_percent).replace('%', '')) || 0}
+                  unit="%"
+                  lowerIsBetter={false}
+                />
+              </div>
+            </div>
+          ) : (
+            /* Regular Mode: KPI Cards */
+            <div className="grid grid-cols-3 gap-3">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5">
+                  <CardTitle className="text-sm">Avg Response Time</CardTitle>
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-xl">{resultsData?.average_response_time ? Number(resultsData.average_response_time).toFixed(2) : '-'} sec</div>
+                  <p className="text-[11px] text-green-600">Mean travel time</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5">
+                  <CardTitle className="text-sm">P90 Response Time</CardTitle>
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-xl">{resultsData?.P90_continuous ? Number(resultsData.P90_continuous).toFixed(2) : '-'} sec</div>
+                  <p className="text-[11px] text-blue-600">90th percentile</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5">
+                  <CardTitle className="text-sm">On-Time Response Rate</CardTitle>
+                  <MapPin className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-xl">{resultsData?.coverage_percent ? 
+                    (typeof simulationResults.coverage_percent === 'string' && simulationResults.coverage_percent.includes('%') 
+                      ? simulationResults.coverage_percent 
+                      : Number(simulationResults.coverage_percent).toFixed(2) + '%') 
+                    : '87%'}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">Within 5-minute response</p>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* Performance Impact Summary */}
+          {isCounterfactualMode && baselineResults && (
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5">
-                <CardTitle className="text-sm">Total Incidents</CardTitle>
-                <Triangle className="h-4 w-4 text-muted-foreground" />
+              <CardHeader>
+                <CardTitle className="text-base">Performance Impact Summary</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-xl">{simulationResults?.total_incidents ?? '-'}</div>
-                <p className="text-[11px] text-muted-foreground">From simulation</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5">
-                <CardTitle className="text-sm">Avg Response Time</CardTitle>
-                <Clock className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-xl">{simulationResults?.average_response_time ? Number(simulationResults.average_response_time).toFixed(2) : '-'} sec</div>
-                <p className="text-[11px] text-green-600">Mean travel time</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5">
-                <CardTitle className="text-sm">P90 Response Time</CardTitle>
-                <Clock className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-xl">{simulationResults?.P90_continuous ? Number(simulationResults.P90_continuous).toFixed(2) : '-'} sec</div>
-                <p className="text-[11px] text-blue-600">90th percentile</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5">
-                <CardTitle className="text-sm">On-Time Response Rate</CardTitle>
-                <MapPin className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-xl">{simulationResults?.coverage_percent ? 
-                  (typeof simulationResults.coverage_percent === 'string' && simulationResults.coverage_percent.includes('%') 
-                    ? simulationResults.coverage_percent 
-                    : Number(simulationResults.coverage_percent).toFixed(2) + '%') 
-                  : '87%'}
+                <div className="space-y-2 text-sm">
+                  {(() => {
+                    const avgDelta = Number(resultsData.average_response_time) - Number(baselineResults.average_response_time);
+                    const p90Delta = Number(resultsData.P90_continuous) - Number(baselineResults.P90_continuous);
+                    const coverageDelta = parseFloat(String(resultsData.coverage_percent).replace('%', '')) - 
+                                         parseFloat(String(baselineResults.coverage_percent).replace('%', ''));
+                    
+                    return (
+                      <>
+                        <div className="flex items-start gap-2">
+                          {avgDelta < 0 ? (
+                            <CheckCircle className="w-4 h-4 text-green-600 mt-0.5" />
+                          ) : (
+                            <AlertTriangle className="w-4 h-4 text-yellow-600 mt-0.5" />
+                          )}
+                          <span>
+                            Average response time {avgDelta < 0 ? 'improved' : 'increased'} by{' '}
+                            <strong>{Math.abs(avgDelta).toFixed(2)} seconds</strong>
+                          </span>
+                        </div>
+                        
+                        <div className="flex items-start gap-2">
+                          {p90Delta < 0 ? (
+                            <CheckCircle className="w-4 h-4 text-green-600 mt-0.5" />
+                          ) : (
+                            <AlertTriangle className="w-4 h-4 text-yellow-600 mt-0.5" />
+                          )}
+                          <span>
+                            90th percentile response time {p90Delta < 0 ? 'improved' : 'increased'} by{' '}
+                            <strong>{Math.abs(p90Delta).toFixed(2)} seconds</strong>
+                          </span>
+                        </div>
+                        
+                        <div className="flex items-start gap-2">
+                          {coverageDelta > 0 ? (
+                            <CheckCircle className="w-4 h-4 text-green-600 mt-0.5" />
+                          ) : (
+                            <AlertTriangle className="w-4 h-4 text-yellow-600 mt-0.5" />
+                          )}
+                          <span>
+                            On-time response rate {coverageDelta > 0 ? 'improved' : 'decreased'} by{' '}
+                            <strong>{Math.abs(coverageDelta).toFixed(2)}%</strong>
+                          </span>
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
-                <p className="text-[11px] text-muted-foreground">Within 5-minute response</p>
               </CardContent>
             </Card>
-          </div>
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <CheckCircle className="h-5 w-5 text-green-600" />
-                Simulation Complete
-              </CardTitle>
-              <CardDescription>
-                Analysis completed successfully at {new Date().toLocaleTimeString()}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-            </CardContent>
-          </Card>
-
-
+          )}
 
           {/* Performance Analytics Section */}
           <div className="mt-8">
