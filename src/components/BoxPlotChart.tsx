@@ -205,18 +205,35 @@ export function BoxPlotChart({ data, width = "100%", height = 500, yAxisLabel = 
       </svg>
       
       {/* Tooltip */}
-      {tooltip && tooltip.data && (
-        <div 
-          className="absolute bg-white border-2 border-gray-300 p-3 rounded-lg shadow-xl pointer-events-none"
-          style={{
-            left: `${tooltip.x}px`,
-            top: `${tooltip.y}px`,
-            transform: 'translate(15px, -50%)',
-            zIndex: 99999,
-            minWidth: '200px',
-            maxWidth: '250px'
-          }}
-        >
+      {tooltip && tooltip.data && (() => {
+        const tooltipWidth = 220;
+        const tooltipHeight = 250;
+        const containerWidth = chartWidth;
+        const containerHeight = height;
+        
+        // Determine if tooltip should appear on left or right of cursor
+        const showOnLeft = tooltip.x + tooltipWidth + 30 > containerWidth;
+        const showAbove = tooltip.y + tooltipHeight / 2 > containerHeight;
+        
+        let leftPos = showOnLeft ? tooltip.x - tooltipWidth - 15 : tooltip.x + 15;
+        let topPos = tooltip.y;
+        
+        // Clamp to container bounds
+        leftPos = Math.max(10, Math.min(leftPos, containerWidth - tooltipWidth - 10));
+        topPos = Math.max(10, Math.min(topPos, containerHeight - 10));
+        
+        return (
+          <div 
+            className="absolute bg-white border-2 border-gray-300 p-3 rounded-lg shadow-xl pointer-events-none"
+            style={{
+              left: `${leftPos}px`,
+              top: `${topPos}px`,
+              transform: showAbove ? 'translateY(-100%)' : 'translateY(-50%)',
+              zIndex: 99999,
+              minWidth: '200px',
+              maxWidth: '250px'
+            }}
+          >
           <div className="font-bold text-base mb-3 text-blue-600 border-b border-gray-200 pb-2">
             {tooltip.data.stationName?.startsWith('station_') 
               ? `Station ${tooltip.data.stationName.replace('station_', '')}`
@@ -249,8 +266,9 @@ export function BoxPlotChart({ data, width = "100%", height = 500, yAxisLabel = 
               <span className="font-mono font-bold text-green-600">{typeof tooltip.data.max === 'number' ? tooltip.data.max.toFixed(2) : 'N/A'} min</span>
             </div>
           </div>
-        </div>
-      )}
+          </div>
+        );
+      })()}
     </div>
   );
 }
