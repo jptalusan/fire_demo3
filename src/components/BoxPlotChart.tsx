@@ -104,19 +104,24 @@ export function BoxPlotChart({ data, width = "100%", height = 500, yAxisLabel = 
                 style={{ cursor: 'pointer' }}
                 onMouseEnter={(e) => {
                   setHoveredStation(item.stationName);
-                  // Use mouse position directly for more accurate positioning
-                  setTooltip({
-                    x: e.pageX || e.clientX,
-                    y: e.pageY || e.clientY,
-                    data: item
-                  });
+                  const svgRect = (e.target as SVGRectElement).ownerSVGElement?.getBoundingClientRect();
+                  if (svgRect) {
+                    setTooltip({
+                      x: e.clientX - svgRect.left,
+                      y: e.clientY - svgRect.top,
+                      data: item
+                    });
+                  }
                 }}
                 onMouseMove={(e) => {
-                  setTooltip(prev => prev ? {
-                    ...prev,
-                    x: e.pageX || e.clientX,
-                    y: e.pageY || e.clientY
-                  } : null);
+                  const svgRect = (e.target as SVGRectElement).ownerSVGElement?.getBoundingClientRect();
+                  if (svgRect) {
+                    setTooltip(prev => prev ? {
+                      ...prev,
+                      x: e.clientX - svgRect.left,
+                      y: e.clientY - svgRect.top
+                    } : null);
+                  }
                 }}
                 onMouseLeave={() => {
                   setHoveredStation(null);
@@ -202,50 +207,14 @@ export function BoxPlotChart({ data, width = "100%", height = 500, yAxisLabel = 
       {/* Tooltip */}
       {tooltip && tooltip.data && (
         <div 
-          className="fixed bg-white border-2 border-gray-800 p-4 rounded-lg shadow-2xl pointer-events-none"
+          className="absolute bg-white border-2 border-gray-300 p-3 rounded-lg shadow-xl pointer-events-none"
           style={{
-            left: (() => {
-              const tooltipWidth = 240;
-              const windowWidth = typeof window !== 'undefined' ? window.innerWidth : 1200;
-              const scrollX = typeof window !== 'undefined' ? window.scrollX : 0;
-              
-              // Start with cursor position
-              let leftPos = tooltip.x - tooltipWidth / 2;
-              
-              // Check if tooltip would go off the right edge
-              if (leftPos + tooltipWidth > windowWidth + scrollX - 30) {
-                leftPos = tooltip.x - tooltipWidth - 15; // Show to the left of cursor
-              }
-              
-              // Check if tooltip would go off the left edge
-              if (leftPos < scrollX + 15) {
-                leftPos = tooltip.x + 15; // Show to the right of cursor
-              }
-              
-              return Math.max(leftPos, scrollX + 15);
-            })(),
-            top: (() => {
-              const tooltipHeight = 280;
-              const windowHeight = typeof window !== 'undefined' ? window.innerHeight : 800;
-              const scrollY = typeof window !== 'undefined' ? window.scrollY : 0;
-              
-              // Try to show above cursor first
-              let topPos = tooltip.y - tooltipHeight - 15;
-              
-              // If tooltip would go above viewport, show below cursor
-              if (topPos < scrollY + 15) {
-                topPos = tooltip.y + 25;
-              }
-              
-              // If still off bottom edge, adjust upward
-              if (topPos + tooltipHeight > windowHeight + scrollY - 30) {
-                topPos = windowHeight + scrollY - tooltipHeight - 30;
-              }
-              
-              return Math.max(topPos, scrollY + 15);
-            })(),
-            zIndex: 9999,
-            minWidth: '220px'
+            left: `${tooltip.x}px`,
+            top: `${tooltip.y}px`,
+            transform: 'translate(15px, -50%)',
+            zIndex: 99999,
+            minWidth: '200px',
+            maxWidth: '250px'
           }}
         >
           <div className="font-bold text-base mb-3 text-blue-600 border-b border-gray-200 pb-2">

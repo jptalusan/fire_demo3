@@ -57,7 +57,7 @@ export default function App() {
   const [historicalIncidentError, setHistoricalIncidentError] = useState<string | null>(null);
   
   // Counterfactual Mode states
-  const [isCounterfactualMode, setIsCounterfactualMode] = useState<boolean>(false);
+  const [isCounterfactualMode, setIsCounterfactualMode] = useState<boolean>(true);
   const [baselineResults, setBaselineResults] = useState<any>(null);
   const [baselineStations, setBaselineStations] = useState<ProcessedStation[]>([]);
   const [baselineApparatusCounts, setBaselineApparatusCounts] = useState<Map<string, ApparatusCounts>>(new Map());

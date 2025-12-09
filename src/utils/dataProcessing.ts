@@ -309,8 +309,6 @@ export function createStationPopup(station: ProcessedStation): string {
  * @returns HTML string for the detailed popup
  */
 export function createDetailedStationPopup(station: ProcessedStation, onDelete?: () => void, selectedStationData?: string, zoneInfo?: string): string {
-  const apparatusList = station.apparatus.map(app => `<li style="margin: 2px 0;">${app}</li>`).join('');
-  
   return `
     <div style="font-family: Arial, sans-serif; min-width: 250px; padding: 8px;">
       <div style="border-bottom: 1px solid #ddd; padding-bottom: 8px; margin-bottom: 8px;">
@@ -326,13 +324,6 @@ export function createDetailedStationPopup(station: ProcessedStation, onDelete?:
         </p>
       </div>
       ` : ''}
-      
-      <div style="margin-bottom: 12px;">
-        <h4 style="margin: 0 0 4px 0; font-size: 14px; color: #333;">Apparatus:</h4>
-        <ul style="margin: 0; padding-left: 16px; font-size: 13px; color: #555;">
-          ${apparatusList}
-        </ul>
-      </div>
       
       <div style="display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; margin-top: 8px;">
         <button 

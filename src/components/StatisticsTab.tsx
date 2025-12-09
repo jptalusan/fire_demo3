@@ -393,10 +393,50 @@ export function StatisticsTab({
                       
                       {apparatusChangedStations.length > 0 && (
                         <div className="flex items-start gap-2">
-                          <TrendingUp className="w-4 h-4 text-purple-600 mt-0.5" />
+                          <TrendingUp className="w-4 h-4 text-purple-600 mt-0.5 flex-shrink-0" />
                           <div>
-                            <strong className="text-purple-700">Apparatus Changed:</strong>{' '}
-                            {apparatusChangedStations.map(s => getStationName(s)).join(', ')}
+                            <strong className="text-purple-700">Apparatus Changed:</strong>
+                            <div className="mt-1 space-y-1">
+                              {apparatusChangedStations.map(current => {
+                                const currentName = getStationName(current);
+                                const baselineStation = baseline.find((s: any) => getStationName(s) === currentName);
+                                
+                                if (!baselineStation) return null;
+                                
+                                // Get baseline and current apparatus counts
+                                const baseApparatus = baselineApparatusCounts?.get(baselineStation.id) || {};
+                                const currApparatus = stationApparatusCounts?.get(current.id) || {};
+                                
+                                // Calculate differences
+                                const allApparatusTypes = new Set([
+                                  ...Object.keys(baseApparatus),
+                                  ...Object.keys(currApparatus)
+                                ]);
+                                
+                                const changes: string[] = [];
+                                allApparatusTypes.forEach(type => {
+                                  const baseCount = baseApparatus[type] || 0;
+                                  const currCount = currApparatus[type] || 0;
+                                  const diff = currCount - baseCount;
+                                  
+                                  if (diff !== 0) {
+                                    const sign = diff > 0 ? '+' : '';
+                                    // Convert apparatus type to readable name
+                                    const typeName = type.replace('_ID', '').replace('_', ' ');
+                                    changes.push(`${sign}${diff} ${typeName}`);
+                                  }
+                                });
+                                
+                                if (changes.length === 0) return null;
+                                
+                                return (
+                                  <div key={current.id} className="text-xs">
+                                    <span className="font-medium">{currentName}</span>
+                                    {' '}({changes.join(', ')})
+                                  </div>
+                                );
+                              })}
+                            </div>
                           </div>
                         </div>
                       )}

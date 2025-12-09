@@ -176,20 +176,6 @@ export function SimulationTab({ hasResults, simulationResults, incidentsCount, i
           {/* Counterfactual Mode: Comparative Analysis */}
           {isCounterfactualMode && baselineResults && simulationResults ? (
             <div className="space-y-4">
-              <Card className="bg-blue-50 border-blue-200">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-blue-900">
-                    <GitCompare className="w-5 h-5" />
-                    Counterfactual Analysis: Performance Comparison
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-blue-700">
-                    Comparing baseline configuration vs. hypothetical scenario with ghost stations
-                  </p>
-                </CardContent>
-              </Card>
-
               {/* Comparative Metrics Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <ComparativeMetricCard
@@ -287,65 +273,6 @@ export function SimulationTab({ hasResults, simulationResults, incidentsCount, i
                 </CardContent>
               </Card>
             </div>
-          )}
-
-          {/* Performance Impact Summary */}
-          {isCounterfactualMode && baselineResults && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Performance Impact Summary</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2 text-sm">
-                  {(() => {
-                    const avgDelta = Number(resultsData.average_response_time) - Number(baselineResults.average_response_time);
-                    const p90Delta = Number(resultsData.P90_continuous) - Number(baselineResults.P90_continuous);
-                    const coverageDelta = parseFloat(String(resultsData.coverage_percent).replace('%', '')) - 
-                                         parseFloat(String(baselineResults.coverage_percent).replace('%', ''));
-                    
-                    return (
-                      <>
-                        <div className="flex items-start gap-2">
-                          {avgDelta < 0 ? (
-                            <CheckCircle className="w-4 h-4 text-green-600 mt-0.5" />
-                          ) : (
-                            <AlertTriangle className="w-4 h-4 text-yellow-600 mt-0.5" />
-                          )}
-                          <span>
-                            Average response time {avgDelta < 0 ? 'improved' : 'increased'} by{' '}
-                            <strong>{Math.abs(avgDelta).toFixed(2)} seconds</strong>
-                          </span>
-                        </div>
-                        
-                        <div className="flex items-start gap-2">
-                          {p90Delta < 0 ? (
-                            <CheckCircle className="w-4 h-4 text-green-600 mt-0.5" />
-                          ) : (
-                            <AlertTriangle className="w-4 h-4 text-yellow-600 mt-0.5" />
-                          )}
-                          <span>
-                            90th percentile response time {p90Delta < 0 ? 'improved' : 'increased'} by{' '}
-                            <strong>{Math.abs(p90Delta).toFixed(2)} seconds</strong>
-                          </span>
-                        </div>
-                        
-                        <div className="flex items-start gap-2">
-                          {coverageDelta > 0 ? (
-                            <CheckCircle className="w-4 h-4 text-green-600 mt-0.5" />
-                          ) : (
-                            <AlertTriangle className="w-4 h-4 text-yellow-600 mt-0.5" />
-                          )}
-                          <span>
-                            On-time response rate {coverageDelta > 0 ? 'improved' : 'decreased'} by{' '}
-                            <strong>{Math.abs(coverageDelta).toFixed(2)}%</strong>
-                          </span>
-                        </div>
-                      </>
-                    );
-                  })()}
-                </div>
-              </CardContent>
-            </Card>
           )}
 
           {/* Performance Analytics Section */}

@@ -58,6 +58,7 @@ const generateMockData = () => {
 // D3.js Box Plot Component
 export const MockBoxPlot: React.FC<{ title: string; data: any[] }> = ({ title, data }) => {
   const svgRef = useRef<SVGSVGElement>(null);
+  const tooltipRef = useRef<HTMLDivElement>(null);
   
   useEffect(() => {
     if (!svgRef.current || !data.length) return;
@@ -114,14 +115,60 @@ export const MockBoxPlot: React.FC<{ title: string; data: any[] }> = ({ title, d
       .style("fill", "#666")
       .text("Travel Time (minutes)");
     
+    // Tooltip functions
+    const tooltip = d3.select(tooltipRef.current);
+    
+    const showTooltip = (event: MouseEvent, d: any) => {
+      tooltip
+        .style("opacity", 1)
+        .style("left", `${event.pageX + 10}px`)
+        .style("top", `${event.pageY - 10}px`)
+        .html(`
+          <div style="font-weight: 600; margin-bottom: 4px; border-bottom: 1px solid #e5e7eb; padding-bottom: 4px;">${d.station}</div>
+          <div style="display: flex; justify-content: space-between; gap: 12px;">
+            <span>Max:</span><span style="font-weight: 500;">${d.max.toFixed(2)} min</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; gap: 12px;">
+            <span>Q3:</span><span style="font-weight: 500;">${d.q3.toFixed(2)} min</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; gap: 12px; color: #dc2626;">
+            <span>Median:</span><span style="font-weight: 500;">${(d.median || d.avgTime).toFixed(2)} min</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; gap: 12px; color: #16a34a;">
+            <span>Mean:</span><span style="font-weight: 500;">${d.avgTime.toFixed(2)} min</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; gap: 12px;">
+            <span>Q1:</span><span style="font-weight: 500;">${d.q1.toFixed(2)} min</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; gap: 12px;">
+            <span>Min:</span><span style="font-weight: 500;">${d.min.toFixed(2)} min</span>
+          </div>
+        `);
+    };
+    
+    const hideTooltip = () => {
+      tooltip.style("opacity", 0);
+    };
+    
+    const moveTooltip = (event: MouseEvent) => {
+      tooltip
+        .style("left", `${event.pageX + 10}px`)
+        .style("top", `${event.pageY - 10}px`);
+    };
+    
     // Create box plots for each station
     data.forEach(d => {
       const x = xScale(d.station)!;
       const boxWidth = xScale.bandwidth();
       const centerX = x + boxWidth / 2;
       
+      // Create a group for each box plot to handle hover events
+      const boxGroup = g.append("g")
+        .attr("class", "box-group")
+        .style("cursor", "pointer");
+      
       // Vertical lines (whiskers)
-      g.append("line")
+      boxGroup.append("line")
         .attr("x1", centerX)
         .attr("x2", centerX)
         .attr("y1", yScale(d.min))
@@ -129,7 +176,7 @@ export const MockBoxPlot: React.FC<{ title: string; data: any[] }> = ({ title, d
         .attr("stroke", "#666")
         .attr("stroke-width", 1);
         
-      g.append("line")
+      boxGroup.append("line")
         .attr("x1", centerX)
         .attr("x2", centerX)
         .attr("y1", yScale(d.q3))
@@ -138,7 +185,7 @@ export const MockBoxPlot: React.FC<{ title: string; data: any[] }> = ({ title, d
         .attr("stroke-width", 1);
       
       // Whisker caps
-      g.append("line")
+      boxGroup.append("line")
         .attr("x1", centerX - boxWidth * 0.2)
         .attr("x2", centerX + boxWidth * 0.2)
         .attr("y1", yScale(d.min))
@@ -146,7 +193,7 @@ export const MockBoxPlot: React.FC<{ title: string; data: any[] }> = ({ title, d
         .attr("stroke", "#666")
         .attr("stroke-width", 2);
         
-      g.append("line")
+      boxGroup.append("line")
         .attr("x1", centerX - boxWidth * 0.2)
         .attr("x2", centerX + boxWidth * 0.2)
         .attr("y1", yScale(d.max))
@@ -155,7 +202,7 @@ export const MockBoxPlot: React.FC<{ title: string; data: any[] }> = ({ title, d
         .attr("stroke-width", 2);
       
       // Box (IQR)
-      g.append("rect")
+      boxGroup.append("rect")
         .attr("x", x + boxWidth * 0.1)
         .attr("y", yScale(d.q3))
         .attr("width", boxWidth * 0.8)
@@ -166,7 +213,7 @@ export const MockBoxPlot: React.FC<{ title: string; data: any[] }> = ({ title, d
         .attr("stroke-width", 1);
       
       // Median line
-      g.append("line")
+      boxGroup.append("line")
         .attr("x1", x + boxWidth * 0.1)
         .attr("x2", x + boxWidth * 0.9)
         .attr("y1", yScale(d.median || d.avgTime))
@@ -175,13 +222,24 @@ export const MockBoxPlot: React.FC<{ title: string; data: any[] }> = ({ title, d
         .attr("stroke-width", 2);
       
       // Mean point (slightly offset for visibility)
-      g.append("circle")
+      boxGroup.append("circle")
         .attr("cx", centerX + 2)
         .attr("cy", yScale(d.avgTime))
         .attr("r", 3)
         .attr("fill", "#16a34a")
         .attr("stroke", "#fff")
         .attr("stroke-width", 1);
+      
+      // Add invisible overlay for better hover detection
+      boxGroup.append("rect")
+        .attr("x", x)
+        .attr("y", yScale(d.max))
+        .attr("width", boxWidth)
+        .attr("height", yScale(d.min) - yScale(d.max))
+        .attr("fill", "transparent")
+        .on("mouseover", (event: MouseEvent) => showTooltip(event, d))
+        .on("mousemove", moveTooltip)
+        .on("mouseout", hideTooltip);
     });
     
   }, [data]);
@@ -195,11 +253,24 @@ export const MockBoxPlot: React.FC<{ title: string; data: any[] }> = ({ title, d
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <svg ref={svgRef} width="500" height="300" style={{ maxWidth: '100%', height: 'auto' }}></svg>
-        <div className="mt-4 text-xs text-gray-500 space-y-1">
-          <div>• Blue box: Interquartile range (Q1-Q3)</div>
-          <div>• Red line: Median, Green dot: Mean</div>
-          <div>• Whiskers: Min-Max range</div>
+        <div style={{ position: 'relative' }}>
+          <svg ref={svgRef} width="500" height="300" style={{ maxWidth: '100%', height: 'auto' }}></svg>
+          <div 
+            ref={tooltipRef}
+            style={{
+              position: 'fixed',
+              opacity: 0,
+              pointerEvents: 'none',
+              background: 'white',
+              border: '1px solid #e5e7eb',
+              borderRadius: '6px',
+              padding: '8px 12px',
+              fontSize: '12px',
+              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+              zIndex: 1000,
+              transition: 'opacity 0.2s'
+            }}
+          />
         </div>
       </CardContent>
     </Card>
@@ -293,11 +364,6 @@ export const MockBarChart: React.FC<{
         <CardTitle className="text-base font-medium flex items-center gap-2">
           <TrendingUp className="h-4 w-4" />
           {title}
-          {isRealData ? (
-            <Badge variant="secondary" className="text-xs">Real Data</Badge>
-          ) : (
-            <Badge variant="outline" className="text-xs">Sample Data</Badge>
-          )}
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -348,7 +414,7 @@ export const StationLineChart: React.FC<{ stationData: any }> = ({ stationData }
             height={60}
           />
           <YAxis 
-            label={{ value: 'Travel Time (min)', angle: -90, position: 'insideLeft' }}
+            label={{ value: 'Travel Time (min)', angle: -90, position: 'center' }}
           />
           <Tooltip 
             formatter={(value: any, name: any) => [`${value} min`, 'Travel Time']}

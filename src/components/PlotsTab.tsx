@@ -666,7 +666,7 @@ export function PlotsTab({ simulationResults, historicalIncidentStats, incidents
                               label={{ value: 'Stations', position: 'insideBottom', offset: -5, style: { textAnchor: 'middle' } }}
                             />
                             <YAxis 
-                              label={{ value: 'Response Time (minutes)', angle: -90, position: 'insideLeft', offset: 10 }} 
+                              label={{ value: 'Response Time (minutes)', angle: -90, position: 'center', offset: 10 }} 
                               width={80}
                             />
                             <Tooltip formatter={(value: any) => `${value} min`} />
