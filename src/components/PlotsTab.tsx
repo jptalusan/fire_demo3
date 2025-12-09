@@ -107,8 +107,505 @@ export function PlotsTab({ simulationResults, historicalIncidentStats, incidents
     };
   });
 
+  // Check for evaluation data
+  const hasEvaluation = simulationResults?.evaluation !== undefined;
+  const engineEvaluation = simulationResults?.evaluation?.engine_evaluation;
+  const medicEvaluation = simulationResults?.evaluation?.medic_evaluation;
+
+  // Prepare station data for comparison charts
+  const prepareStationData = (evaluation: any) => {
+    if (!evaluation?.per_station_metrics?.station_comparison) return [];
+    
+    return evaluation.per_station_metrics.station_comparison
+      .filter((station: any) => station.travel_mean_sim !== null && station.travel_mean_gt !== null)
+      .map((station: any) => ({
+        station: station.StationID.replace('Station ', 'S'),
+        simMean: station.travel_mean_sim / 60, // Convert to minutes
+        gtMean: station.travel_mean_gt / 60,
+        simP90: station.travel_p90_sim / 60,
+        gtP90: station.travel_p90_gt / 60,
+        simCount: station.count_sim,
+        gtCount: station.count_gt,
+      }));
+  };
+
+  const engineStationData = engineEvaluation ? prepareStationData(engineEvaluation) : [];
+  const medicStationData = medicEvaluation ? prepareStationData(medicEvaluation) : [];
+
+  const [evaluationChartsOpen, setEvaluationChartsOpen] = useState(true);
+
   return (
     <div className="h-full overflow-auto space-y-4 p-4">
+      {/* Evaluation Comparison Charts - Simulation vs Historical */}
+      {hasEvaluation && (engineEvaluation || medicEvaluation) && (
+        <Collapsible open={evaluationChartsOpen} onOpenChange={setEvaluationChartsOpen}>
+          <Card className="border-2 border-blue-200 bg-gradient-to-r from-blue-50 to-purple-50">
+            <CollapsibleTrigger className="w-full">
+              <CardHeader className="cursor-pointer hover:bg-white/50 transition-colors">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    {evaluationChartsOpen ? (
+                      <ChevronDown className="h-5 w-5 text-blue-600" />
+                    ) : (
+                      <ChevronRight className="h-5 w-5 text-blue-600" />
+                    )}
+                    <CardTitle className="text-lg">
+                      Simulation vs Ground Truth Comparison
+                    </CardTitle>
+                    <Badge variant="secondary" className="bg-blue-100 text-blue-900">
+                      Evaluation Mode
+                    </Badge>
+                  </div>
+                </div>
+                <CardDescription className="text-left ml-8">
+                  Station-level performance comparison between simulation results and historical ground truth data
+                </CardDescription>
+              </CardHeader>
+            </CollapsibleTrigger>
+            
+            <CollapsibleContent>
+              <CardContent className="space-y-6 pt-4">
+                {/* Fire Engine Charts */}
+                {engineEvaluation && engineStationData.length > 0 && (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary" className="text-sm bg-blue-100 text-blue-900">
+                        Fire Engine
+                      </Badge>
+                      <span className="text-sm text-muted-foreground">
+                        {engineStationData.length} stations
+                      </span>
+                    </div>
+
+                    {/* Engine: Avg Travel Time Comparison */}
+                    <Card>
+                      <CardHeader>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <CardTitle className="text-base">Average Travel Time by Station</CardTitle>
+                            <CardDescription>
+                              Comparison of simulation vs historical data (minutes)
+                            </CardDescription>
+                          </div>
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => setFullscreenChart({
+                              title: "Engine: Average Travel Time by Station",
+                              content: (
+                                <ResponsiveContainer width="100%" height={600}>
+                                  <BarChart 
+                                    data={engineStationData}
+                                    margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+                                  >
+                                    <CartesianGrid strokeDasharray="3 3" />
+                                    <XAxis 
+                                      dataKey="station" 
+                                      angle={-45}
+                                      textAnchor="end"
+                                      height={80}
+                                      label={{ value: 'Station', position: 'insideBottom', offset: -20 }}
+                                    />
+                                    <YAxis domain={['auto', 'auto']} label={{ value: 'Avg Travel Time (min)', angle: -90, position: 'center', offset: 20 }} />
+                                    <Tooltip formatter={(value: any) => `${Number(value).toFixed(2)} min`} />
+                                    <Legend verticalAlign="top" align="right" wrapperStyle={{ paddingBottom: '20px' }} />
+                                    <Bar dataKey="simMean" fill="#3b82f6" name="Simulation" />
+                                    <Bar dataKey="gtMean" fill="#f97316" name="Historical" />
+                                  </BarChart>
+                                </ResponsiveContainer>
+                              )
+                            })}
+                            className="hover:bg-gray-100"
+                          >
+                            <Maximize2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <ResponsiveContainer width="100%" height={400}>
+                          <BarChart 
+                            data={engineStationData}
+                            margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis 
+                              dataKey="station" 
+                              angle={-45}
+                              textAnchor="end"
+                              height={80}
+                              label={{ value: 'Station', position: 'insideBottom', offset: -20 }}
+                            />
+                            <YAxis label={{ value: 'Avg Travel Time (min)', angle: -90, position: 'center', offset: 10 }} />
+                            <Tooltip formatter={(value: any) => `${Number(value).toFixed(2)} min`} />
+                            <Legend verticalAlign="top" align="right" wrapperStyle={{ paddingBottom: '20px' }} />
+                            <Bar dataKey="simMean" fill="#3b82f6" name="Simulation" />
+                            <Bar dataKey="gtMean" fill="#f97316" name="Historical" />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </CardContent>
+                    </Card>
+
+                    {/* Engine: P90 Travel Time Comparison */}
+                    <Card>
+                      <CardHeader>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <CardTitle className="text-base">P90 Travel Time by Station</CardTitle>
+                            <CardDescription>
+                              90th percentile comparison of simulation vs historical data (minutes)
+                            </CardDescription>
+                          </div>
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => setFullscreenChart({
+                              title: "Engine: P90 Travel Time by Station",
+                              content: (
+                                <ResponsiveContainer width="100%" height={600}>
+                                  <BarChart 
+                                    data={engineStationData}
+                                    margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+                                  >
+                                    <CartesianGrid strokeDasharray="3 3" />
+                                    <XAxis 
+                                      dataKey="station" 
+                                      angle={-45}
+                                      textAnchor="end"
+                                      height={80}
+                                      label={{ value: 'Station', position: 'insideBottom', offset: -20 }}
+                                    />
+                                    <YAxis domain={['auto', 'auto']} label={{ value: 'P90 Travel Time (min)', angle: -90, position: 'center', offset: 20 }} />
+                                    <Tooltip formatter={(value: any) => `${Number(value).toFixed(2)} min`} />
+                                    <Legend verticalAlign="top" align="right" wrapperStyle={{ paddingBottom: '20px' }} />
+                                    <Bar dataKey="simP90" fill="#3b82f6" name="Simulation" />
+                                    <Bar dataKey="gtP90" fill="#f97316" name="Historical" />
+                                  </BarChart>
+                                </ResponsiveContainer>
+                              )
+                            })}
+                            className="hover:bg-gray-100"
+                          >
+                            <Maximize2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <ResponsiveContainer width="100%" height={400}>
+                          <BarChart 
+                            data={engineStationData}
+                            margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis 
+                              dataKey="station" 
+                              angle={-45}
+                              textAnchor="end"
+                              height={80}
+                              label={{ value: 'Station', position: 'insideBottom', offset: -20 }}
+                            />
+                            <YAxis label={{ value: 'P90 Travel Time (min)', angle: -90, position: 'center', offset: 10 }} />
+                            <Tooltip formatter={(value: any) => `${Number(value).toFixed(2)} min`} />
+                            <Legend verticalAlign="top" align="right" wrapperStyle={{ paddingBottom: '20px' }} />
+                            <Bar dataKey="simP90" fill="#3b82f6" name="Simulation" />
+                            <Bar dataKey="gtP90" fill="#f97316" name="Historical" />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </CardContent>
+                    </Card>
+
+                    {/* Engine: Incident Count Comparison */}
+                    <Card>
+                      <CardHeader>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <CardTitle className="text-base">Incident Count by Station</CardTitle>
+                            <CardDescription>
+                              Number of incidents handled: simulation vs historical data
+                            </CardDescription>
+                          </div>
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => setFullscreenChart({
+                              title: "Engine: Incident Count by Station",
+                              content: (
+                                <ResponsiveContainer width="100%" height={600}>
+                                  <BarChart 
+                                    data={engineStationData}
+                                    margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+                                  >
+                                    <CartesianGrid strokeDasharray="3 3" />
+                                    <XAxis 
+                                      dataKey="station" 
+                                      angle={-45}
+                                      textAnchor="end"
+                                      height={80}
+                                      label={{ value: 'Station', position: 'insideBottom', offset: -20 }}
+                                    />
+                                    <YAxis domain={['auto', 'auto']} label={{ value: 'Incident Count', angle: -90, position: 'center', offset: 20 }} />
+                                    <Tooltip />
+                                    <Legend verticalAlign="top" align="right" wrapperStyle={{ paddingBottom: '20px' }} />
+                                    <Bar dataKey="simCount" fill="#3b82f6" name="Simulation" />
+                                    <Bar dataKey="gtCount" fill="#f97316" name="Historical" />
+                                  </BarChart>
+                                </ResponsiveContainer>
+                              )
+                            })}
+                            className="hover:bg-gray-100"
+                          >
+                            <Maximize2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <ResponsiveContainer width="100%" height={400}>
+                          <BarChart 
+                            data={engineStationData}
+                            margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis 
+                              dataKey="station" 
+                              angle={-45}
+                              textAnchor="end"
+                              height={80}
+                              label={{ value: 'Station', position: 'insideBottom', offset: -20 }}
+                            />
+                            <YAxis label={{ value: 'Incident Count', angle: -90, position: 'center', offset: 10 }} />
+                            <Tooltip />
+                            <Legend verticalAlign="top" align="right" wrapperStyle={{ paddingBottom: '20px' }} />
+                            <Bar dataKey="simCount" fill="#3b82f6" name="Simulation" />
+                            <Bar dataKey="gtCount" fill="#f97316" name="Historical" />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </CardContent>
+                    </Card>
+                  </div>
+                )}
+
+                {/* Medic Unit Charts */}
+                {medicEvaluation && medicStationData.length > 0 && (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 mt-6">
+                      <Badge variant="secondary" className="text-sm bg-purple-100 text-purple-900">
+                        Medic Units
+                      </Badge>
+                      <span className="text-sm text-muted-foreground">
+                        {medicStationData.length} stations
+                      </span>
+                    </div>
+
+                    {/* Medic: Avg Travel Time Comparison */}
+                    <Card>
+                      <CardHeader>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <CardTitle className="text-base">Average Travel Time by Station</CardTitle>
+                            <CardDescription>
+                              Comparison of simulation vs historical data (minutes)
+                            </CardDescription>
+                          </div>
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => setFullscreenChart({
+                              title: "Medic: Average Travel Time by Station",
+                              content: (
+                                <ResponsiveContainer width="100%" height={600}>
+                                  <BarChart 
+                                    data={medicStationData}
+                                    margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+                                  >
+                                    <CartesianGrid strokeDasharray="3 3" />
+                                    <XAxis 
+                                      dataKey="station" 
+                                      angle={-45}
+                                      textAnchor="end"
+                                      height={80}
+                                      label={{ value: 'Station', position: 'insideBottom', offset: -20 }}
+                                    />
+                                    <YAxis domain={['auto', 'auto']} label={{ value: 'Avg Travel Time (min)', angle: -90, position: 'center', offset: 20 }} />
+                                    <Tooltip formatter={(value: any) => `${Number(value).toFixed(2)} min`} />
+                                    <Legend verticalAlign="top" align="right" wrapperStyle={{ paddingBottom: '20px' }} />
+                                    <Bar dataKey="simMean" fill="#3b82f6" name="Simulation" />
+                                    <Bar dataKey="gtMean" fill="#f97316" name="Historical" />
+                                  </BarChart>
+                                </ResponsiveContainer>
+                              )
+                            })}
+                            className="hover:bg-gray-100"
+                          >
+                            <Maximize2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <ResponsiveContainer width="100%" height={400}>
+                          <BarChart 
+                            data={medicStationData}
+                            margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis 
+                              dataKey="station" 
+                              angle={-45}
+                              textAnchor="end"
+                              height={80}
+                              label={{ value: 'Station', position: 'insideBottom', offset: -20 }}
+                            />
+                            <YAxis domain={['auto', 'auto']} label={{ value: 'Avg Travel Time (min)', angle: -90, position: 'center', offset: 20 }} />
+                            <Tooltip formatter={(value: any) => `${Number(value).toFixed(2)} min`} />
+                            <Legend verticalAlign="top" align="right" wrapperStyle={{ paddingBottom: '20px' }} />
+                            <Bar dataKey="simMean" fill="#3b82f6" name="Simulation" />
+                            <Bar dataKey="gtMean" fill="#f97316" name="Historical" />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </CardContent>
+                    </Card>
+
+                    {/* Medic: P90 Travel Time Comparison */}
+                    <Card>
+                      <CardHeader>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <CardTitle className="text-base">P90 Travel Time by Station</CardTitle>
+                            <CardDescription>
+                              90th percentile comparison of simulation vs historical data (minutes)
+                            </CardDescription>
+                          </div>
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => setFullscreenChart({
+                              title: "Medic: P90 Travel Time by Station",
+                              content: (
+                                <ResponsiveContainer width="100%" height={600}>
+                                  <BarChart 
+                                    data={medicStationData}
+                                    margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+                                  >
+                                    <CartesianGrid strokeDasharray="3 3" />
+                                    <XAxis 
+                                      dataKey="station" 
+                                      angle={-45}
+                                      textAnchor="end"
+                                      height={80}
+                                      label={{ value: 'Station', position: 'insideBottom', offset: -20 }}
+                                    />
+                                    <YAxis domain={['auto', 'auto']} label={{ value: 'P90 Travel Time (min)', angle: -90, position: 'center', offset: 20 }} />
+                                    <Tooltip formatter={(value: any) => `${Number(value).toFixed(2)} min`} />
+                                    <Legend verticalAlign="top" align="right" wrapperStyle={{ paddingBottom: '20px' }} />
+                                    <Bar dataKey="simP90" fill="#3b82f6" name="Simulation" />
+                                    <Bar dataKey="gtP90" fill="#f97316" name="Historical" />
+                                  </BarChart>
+                                </ResponsiveContainer>
+                              )
+                            })}
+                            className="hover:bg-gray-100"
+                          >
+                            <Maximize2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <ResponsiveContainer width="100%" height={400}>
+                          <BarChart 
+                            data={medicStationData}
+                            margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis 
+                              dataKey="station" 
+                              angle={-45}
+                              textAnchor="end"
+                              height={80}
+                              label={{ value: 'Station', position: 'insideBottom', offset: -20 }}
+                            />
+                            <YAxis domain={['auto', 'auto']} label={{ value: 'P90 Travel Time (min)', angle: -90, position: 'center', offset: 20 }} />
+                            <Tooltip formatter={(value: any) => `${Number(value).toFixed(2)} min`} />
+                            <Legend verticalAlign="top" align="right" wrapperStyle={{ paddingBottom: '20px' }} />
+                            <Bar dataKey="simP90" fill="#3b82f6" name="Simulation" />
+                            <Bar dataKey="gtP90" fill="#f97316" name="Historical" />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </CardContent>
+                    </Card>
+
+                    {/* Medic: Incident Count Comparison */}
+                    <Card>
+                      <CardHeader>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <CardTitle className="text-base">Incident Count by Station</CardTitle>
+                            <CardDescription>
+                              Number of incidents handled: simulation vs historical data
+                            </CardDescription>
+                          </div>
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => setFullscreenChart({
+                              title: "Medic: Incident Count by Station",
+                              content: (
+                                <ResponsiveContainer width="100%" height={600}>
+                                  <BarChart 
+                                    data={medicStationData}
+                                    margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+                                  >
+                                    <CartesianGrid strokeDasharray="3 3" />
+                                    <XAxis 
+                                      dataKey="station" 
+                                      angle={-45}
+                                      textAnchor="end"
+                                      height={80}
+                                      label={{ value: 'Station', position: 'insideBottom', offset: -20 }}
+                                    />
+                                    <YAxis domain={['auto', 'auto']} label={{ value: 'Incident Count', angle: -90, position: 'center', offset: 20 }} />
+                                    <Tooltip />
+                                    <Legend verticalAlign="top" align="right" wrapperStyle={{ paddingBottom: '20px' }} />
+                                    <Bar dataKey="simCount" fill="#3b82f6" name="Simulation" />
+                                    <Bar dataKey="gtCount" fill="#f97316" name="Historical" />
+                                  </BarChart>
+                                </ResponsiveContainer>
+                              )
+                            })}
+                            className="hover:bg-gray-100"
+                          >
+                            <Maximize2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <ResponsiveContainer width="100%" height={400}>
+                          <BarChart 
+                            data={medicStationData}
+                            margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis 
+                              dataKey="station" 
+                              angle={-45}
+                              textAnchor="end"
+                              height={80}
+                              label={{ value: 'Station', position: 'insideBottom', offset: -20 }}
+                            />
+                            <YAxis domain={['auto', 'auto']} label={{ value: 'Incident Count', angle: -90, position: 'center', offset: 20 }} />
+                            <Tooltip />
+                            <Legend verticalAlign="top" align="right" wrapperStyle={{ paddingBottom: '20px' }} />
+                            <Bar dataKey="simCount" fill="#3b82f6" name="Simulation" />
+                            <Bar dataKey="gtCount" fill="#f97316" name="Historical" />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </CardContent>
+                    </Card>
+                  </div>
+                )}
+              </CardContent>
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
+      )}
+
       {/* Comparison Charts for Changed Stations (Counterfactual Mode) */}
       {(() => {
         // Filter stations that have both baseline and new config data (excluding new stations)

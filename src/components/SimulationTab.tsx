@@ -13,6 +13,70 @@ interface SimulationTabProps {
   baselineResults?: any;
 }
 
+// Ground Truth Metric Card Component
+interface GroundTruthMetricCardProps {
+  title: string;
+  icon: React.ReactNode;
+  simulationValue: number;
+  groundTruthValue: number;
+  unit: string;
+  format?: (value: number) => string;
+  lowerIsBetter?: boolean;
+}
+
+function GroundTruthMetricCard({ 
+  title, 
+  icon, 
+  simulationValue, 
+  groundTruthValue, 
+  unit, 
+  format = (v) => v.toFixed(2),
+  lowerIsBetter = true
+}: GroundTruthMetricCardProps) {
+  const delta = simulationValue - groundTruthValue;
+  const percentChange = groundTruthValue !== 0 ? ((delta / groundTruthValue) * 100) : 0;
+  
+  // Determine if this is better or worse
+  const isBetter = lowerIsBetter ? delta < 0 : delta > 0;
+  const isNeutral = Math.abs(delta) < 0.01;
+  
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium">{title}</CardTitle>
+        {icon}
+      </CardHeader>
+      <CardContent>
+        <div className="text-2xl font-bold mb-1">
+          {format(simulationValue)} {unit}
+        </div>
+        {!isNeutral && (
+          <div className={`flex items-center gap-1 text-sm font-medium ${
+            isBetter ? 'text-green-600' : 'text-red-600'
+          }`}>
+            {delta > 0 ? (
+              <ArrowUp className="w-4 h-4" />
+            ) : (
+              <ArrowDown className="w-4 h-4" />
+            )}
+            <span>
+              {Math.abs(delta).toFixed(2)} {unit} ({Math.abs(percentChange).toFixed(1)}%)
+            </span>
+          </div>
+        )}
+        {isNeutral && (
+          <div className="flex items-center gap-1 text-sm font-medium text-gray-500">
+            <span>No change</span>
+          </div>
+        )}
+        <div className="text-xs text-muted-foreground mt-1">
+          Historical: {format(groundTruthValue)} {unit}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 // Comparative Metric Card Component
 interface ComparativeMetricCardProps {
   title: string;
@@ -98,6 +162,12 @@ export function SimulationTab({ hasResults, simulationResults, incidentsCount, i
   const stationReports: StationReport[] = resultsData?.station_report 
     ? processStationReport(resultsData.station_report)
     : [];
+  
+  // Check if evaluation data exists (ground truth comparison)
+  const hasEvaluation = simulationResults?.evaluation !== undefined;
+  const overallSummary = simulationResults?.evaluation?.overall_summary;
+  const engineEvaluation = simulationResults?.evaluation?.engine_evaluation;
+  const medicEvaluation = simulationResults?.evaluation?.medic_evaluation;
 
   return (
     <div className="h-full overflow-auto space-y-4 p-4">
@@ -150,8 +220,36 @@ export function SimulationTab({ hasResults, simulationResults, incidentsCount, i
                 />
               </div>
             </div>
+          ) : hasEvaluation && overallSummary ? (
+            /* Regular Mode: KPI Cards with Ground Truth Comparison */
+            <div className="grid grid-cols-3 gap-3">
+              <GroundTruthMetricCard
+                title="Avg Response Time"
+                icon={<Clock className="h-4 w-4 text-muted-foreground" />}
+                simulationValue={Number(resultsData?.average_response_time) || 0}
+                groundTruthValue={overallSummary.ground_truth_travel_time_mean || 0}
+                unit="sec"
+                lowerIsBetter={true}
+              />
+              <GroundTruthMetricCard
+                title="P90 Response Time"
+                icon={<Clock className="h-4 w-4 text-muted-foreground" />}
+                simulationValue={Number(resultsData?.P90_continuous) || 0}
+                groundTruthValue={overallSummary.ground_truth_P90_continuous || 0}
+                unit="sec"
+                lowerIsBetter={true}
+              />
+              <GroundTruthMetricCard
+                title="On-Time Response Rate"
+                icon={<MapPin className="h-4 w-4 text-muted-foreground" />}
+                simulationValue={parseFloat(String(resultsData?.coverage_percent || 0).replace('%', ''))}
+                groundTruthValue={overallSummary.ground_truth_coverage_percent || 0}
+                unit="%"
+                lowerIsBetter={false}
+              />
+            </div>
           ) : (
-            /* Regular Mode: KPI Cards */
+            /* Regular Mode: KPI Cards without Ground Truth */
             <div className="grid grid-cols-3 gap-3">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5">

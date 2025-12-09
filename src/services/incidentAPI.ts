@@ -21,6 +21,7 @@ export interface IncidentFilters {
     west: number;
   };
   incidentTypes?: string[];
+  incidentType?: string;
 }
 
 export interface APIResponse<T> {
@@ -165,7 +166,8 @@ class IncidentAPI {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          dateRange
+          dateRange,
+          incidentType: parameters.incidentType
         })
       });
 

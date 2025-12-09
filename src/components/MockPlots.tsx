@@ -211,14 +211,82 @@ export const MockBarChart: React.FC<{
   title: string; 
   data: any[]; 
   valueKey: string; 
+  secondValueKey?: string;
   labelKey: string; 
   unit?: string;
   isRealData?: boolean;
+  isComparison?: boolean;
 }> = ({ 
-  title, data, valueKey, labelKey, unit = '', isRealData = false 
+  title, data, valueKey, secondValueKey, labelKey, unit = '', isRealData = false, isComparison = false 
 }) => {
-  const maxValue = Math.max(...data.map(item => item[valueKey]));
+  const allValues = data.flatMap(item => 
+    secondValueKey ? [item[valueKey], item[secondValueKey]] : [item[valueKey]]
+  );
+  const maxValue = Math.max(...allValues.filter(v => v !== null && v !== undefined));
   
+  if (isComparison && secondValueKey) {
+    // Grouped bar chart for comparison mode
+    return (
+      <Card>
+        <CardHeader className="flex flex-row items-center space-y-0 pb-2">
+          <CardTitle className="text-base font-medium flex items-center gap-2">
+            <TrendingUp className="h-4 w-4" />
+            {title}
+            <Badge variant="secondary" className="text-xs">Comparison</Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            {data.map((item, index) => (
+              <div key={index} className="space-y-1">
+                <div className="text-xs font-medium text-gray-700">{item[labelKey]}</div>
+                <div className="flex items-center space-x-2">
+                  <div className="w-20 text-xs text-blue-600">Sim:</div>
+                  <div className="flex-1 relative">
+                    <div className="h-4 bg-gray-100 rounded relative overflow-hidden">
+                      <div 
+                        className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded transition-all duration-500"
+                        style={{ width: `${(item[valueKey] / maxValue) * 100}%` }}
+                      />
+                    </div>
+                  </div>
+                  <div className="w-16 text-xs text-gray-600 text-right">
+                    {typeof item[valueKey] === 'number' ? item[valueKey].toFixed(1) : item[valueKey]}{unit}
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <div className="w-20 text-xs text-orange-600">Hist:</div>
+                  <div className="flex-1 relative">
+                    <div className="h-4 bg-gray-100 rounded relative overflow-hidden">
+                      <div 
+                        className="h-full bg-gradient-to-r from-orange-500 to-orange-600 rounded transition-all duration-500"
+                        style={{ width: `${(item[secondValueKey] / maxValue) * 100}%` }}
+                      />
+                    </div>
+                  </div>
+                  <div className="w-16 text-xs text-gray-600 text-right">
+                    {typeof item[secondValueKey] === 'number' ? item[secondValueKey].toFixed(1) : item[secondValueKey]}{unit}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-4 flex items-center gap-4 text-xs">
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 bg-blue-600 rounded"></div>
+              <span>Simulation</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 bg-orange-600 rounded"></div>
+              <span>Historical</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+  
+  // Single bar chart (original mode)
   return (
     <Card>
       <CardHeader className="flex flex-row items-center space-y-0 pb-2">

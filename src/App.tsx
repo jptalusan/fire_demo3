@@ -39,6 +39,7 @@ export default function App() {
   const [mapInstance, setMapInstance] = useState<any>(null);
   // New states for incident model and date range
   const [selectedIncidentModel, setSelectedIncidentModel] = useState<string>(controlPanelConfig.incidentModels.default);
+  const [selectedIncidentType, setSelectedIncidentType] = useState<string>('ems_fire');
   const [startDate, setStartDate] = useState<Date | undefined>(() => {
     // Default to 30 days ago
     const date = new Date();
@@ -345,6 +346,8 @@ export default function App() {
               onStationsChange={handleStationsChange}
               selectedIncidentModel={selectedIncidentModel}
               onIncidentModelChange={setSelectedIncidentModel}
+              selectedIncidentType={selectedIncidentType}
+              onIncidentTypeChange={setSelectedIncidentType}
               startDate={startDate}
               endDate={endDate}
               onStartDateChange={setStartDate}

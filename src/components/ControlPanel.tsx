@@ -39,6 +39,8 @@ interface ControlPanelProps {
   onServiceZoneFileChange?: (file: string) => void;
   selectedIncidentModel?: string;
   onIncidentModelChange?: (model: string) => void;
+  selectedIncidentType?: string;
+  onIncidentTypeChange?: (type: string) => void;
   startDate?: Date;
   endDate?: Date;
   onStartDateChange?: (date: Date | undefined) => void;
@@ -80,6 +82,8 @@ export function ControlPanel({
   onServiceZoneFileChange,
   selectedIncidentModel = controlPanelConfig.incidentModels.default,
   onIncidentModelChange,
+  selectedIncidentType = 'ems_fire',
+  onIncidentTypeChange,
   startDate,
   endDate,
   onStartDateChange,
@@ -307,7 +311,7 @@ export function ControlPanel({
               start: startDate.toISOString(),
               end: endDate.toISOString()
             },
-            {} // Additional parameters can be added here
+            { incidentType: selectedIncidentType } // Include incident type
           );
 
           if (generateResponse.status !== 'success') {
@@ -693,6 +697,7 @@ export function ControlPanel({
               startDate: startDate ? startDate.toISOString() : null,
               endDate: endDate ? endDate.toISOString() : null
             },
+            incidentType: selectedIncidentType,
             models: {
               incident: selectedIncidentModel,
               travelTime: selectedTravelTimeModel,
@@ -719,6 +724,7 @@ export function ControlPanel({
               startDate: startDate ? startDate.toISOString() : null,
               endDate: endDate ? endDate.toISOString() : null
             },
+            incidentType: selectedIncidentType,
             models: {
               incident: selectedIncidentModel,
               travelTime: selectedTravelTimeModel,
@@ -800,6 +806,7 @@ export function ControlPanel({
             startDate: startDate ? startDate.toISOString() : null,
             endDate: endDate ? endDate.toISOString() : null
           },
+          incidentType: selectedIncidentType,
           
           // Model configurations
           models: {
@@ -1208,6 +1215,30 @@ export function ControlPanel({
 
           <Separator />
 
+          {/* Incident Type Section */}
+          <div className="space-y-4">
+            <h4 className="font-semibold text-gray-900">Incident Type</h4>
+            <div>
+              <Label>Type</Label>
+              <div className="mt-2">
+                <select
+                  value={selectedIncidentType || 'ems_fire'}
+                  onChange={(e) => onIncidentTypeChange?.(e.target.value)}
+                  className="w-full p-2 border rounded"
+                  style={{ color: '#111827' }}
+                >
+                  <option value="ems_fire">EMS + Fire</option>
+                  <option value="fire">Fire Only</option>
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  {selectedIncidentType === 'fire' ? 'Fire incidents only' : 'Both EMS and Fire incidents'}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <Separator />
+
           {/* Models Section */}
           <div className="space-y-4">
             <h4 className="font-semibold text-gray-900">Models</h4>
@@ -1304,7 +1335,7 @@ export function ControlPanel({
                                   start: startDate.toISOString(),
                                   end: endDate.toISOString()
                                 },
-                                {} // Additional parameters can be added here
+                                { incidentType: selectedIncidentType } // Include incident type
                               );
 
                               if (generateResponse.status !== 'success') {
@@ -1354,7 +1385,8 @@ export function ControlPanel({
                                   dateRange: {
                                     start: startDate.toISOString().split('T')[0],
                                     end: endDate.toISOString().split('T')[0]
-                                  }
+                                  },
+                                  incidentType: selectedIncidentType
                                 }
                               );
                               

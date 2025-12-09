@@ -198,51 +198,9 @@ export function StatisticsTab({
   return (
     <div className="h-full overflow-auto space-y-4 p-4">
       {/* Note: Comparative metrics moved to Simulation tab in counterfactual mode */}
+      {/* Note: KPI cards removed from Statistics tab - only shown in Simulation Results tab */}
       
-      {/* Regular Statistics Content (shown in both modes) */}
-      {resultsData && (
-        <div className="space-y-4">
-          {/* KPI Cards - Only show in regular mode, hidden in counterfactual */}
-          {!isCounterfactualMode && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Avg Response Time</CardTitle>
-                  <Clock className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{resultsData?.average_response_time ? Number(resultsData.average_response_time).toFixed(2) : '-'} sec</div>
-                  <p className="text-xs text-muted-foreground">Mean travel time</p>
-                </CardContent>
-              </Card>
-              
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">P90 Response Time</CardTitle>
-                  <Clock className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{resultsData?.P90_continuous ? Number(resultsData.P90_continuous).toFixed(2) : '-'} sec</div>
-                  <p className="text-xs text-muted-foreground">90th percentile</p>
-                </CardContent>
-              </Card>
-              
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">On-Time Rate</CardTitle>
-                  <MapPin className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{resultsData?.coverage_percent || '-'}</div>
-                  <p className="text-xs text-muted-foreground">Within target time</p>
-                </CardContent>
-              </Card>
-            </div>
-          )}
-        </div>
-      )}
-      
-      {/* Station Configuration Section (always shown) */}
+      {/* Station Configuration Section (always shown in standard mode) */}
       {!isCounterfactualMode && (
         <div className="space-y-4">
           {/* Original statistics content continues below */}
