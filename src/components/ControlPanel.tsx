@@ -973,7 +973,7 @@ export function ControlPanel({
               </div>
               <Switch
                 checked={isCounterfactualMode}
-                onCheckedChange={(checked) => {
+                onCheckedChange={(checked: boolean) => {
                   console.log('Switch toggled, new value:', checked);
                   if (onCounterfactualModeChange) {
                     console.log('Calling onCounterfactualModeChange with:', checked);

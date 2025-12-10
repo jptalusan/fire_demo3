@@ -285,13 +285,16 @@ export function StatisticsTab({
                   
                   if (!baselineStation) return false;
                   
-                  const baseLat = baselineStation.lat || baselineStation.latitude;
-                  const baseLon = baselineStation.lon || baselineStation.lng || baselineStation.longitude;
+                  const baseLat = baselineStation.lat;
+                  const baseLon = baselineStation.lon || baselineStation.lng;
                   const currLat = current.lat;
                   const currLon = current.lon || current.lng;
                   
                   // Check if position changed (allowing for small floating point differences)
-                  return Math.abs(baseLat - currLat) > 0.0001 || Math.abs(baseLon - currLon) > 0.0001;
+                  if (baseLat === undefined || currLat === undefined) return false;
+                  const latChanged = Math.abs(baseLat - currLat) > 0.0001;
+                  const lonChanged = Math.abs((baseLon ?? 0) - (currLon ?? 0)) > 0.0001;
+                  return latChanged || lonChanged;
                 });
                 
                 // Check for apparatus changes
@@ -374,8 +377,8 @@ export function StatisticsTab({
                                 
                                 if (!baselineStation) return null;
                                 
-                                const baseLat = (baselineStation.lat || baselineStation.latitude)?.toFixed(4);
-                                const baseLon = (baselineStation.lon || baselineStation.lng || baselineStation.longitude)?.toFixed(4);
+                                const baseLat = baselineStation.lat?.toFixed(4);
+                                const baseLon = (baselineStation.lon || baselineStation.lng)?.toFixed(4);
                                 const currLat = current.lat?.toFixed(4);
                                 const currLon = (current.lon || current.lng)?.toFixed(4);
                                 

@@ -14,6 +14,7 @@ interface PlotsTabProps {
   simulationResults?: any;
   historicalIncidentStats?: any;
   incidents?: any[];
+  isCounterfactualMode?: boolean;
 }
 
 export function PlotsTab({ simulationResults, historicalIncidentStats, incidents = [] }: PlotsTabProps) {

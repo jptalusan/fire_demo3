@@ -1040,7 +1040,7 @@ export function MapSection({
       displayName: `Station ${newStationNumber}`,
       lat: lat,
       lon: lng,
-      address: `${lat.toFixed(6)}, ${lng.toFixed(6)}`,
+      address: `${lat.toFixed(6)} ${lng.toFixed(6)}`,
       serviceZone: 'Custom',
       stationNumber: newStationNumber,
       apparatus: [
