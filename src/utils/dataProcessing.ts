@@ -107,7 +107,8 @@ export function processStationTravelTimes(stationReportData: any[]): StationTrav
     // Each item is an object with a single key (station ID) and value (metrics)
     const stationName = Object.keys(reportItem)[0];
     const stationData = reportItem[stationName];
-    const travelTimes = stationData['travel times'] || [];
+    // Support both snake_case and space-separated keys for compatibility
+    const travelTimes = stationData['travel_times'] || stationData['travel times'] || [];
     const travelTimesMinutes = travelTimes.map((time: number) => time / 60); // Convert seconds to minutes
     
     const stats = calculateBoxPlotStats(travelTimesMinutes);
@@ -139,9 +140,10 @@ export function processStationReport(stationReportData: any[]): StationReport[] 
     
     return {
       stationName,
-      travelTimeMean: metrics['travel time mean'] || 0,
-      travelTimeP90: metrics['travel time p90'] || 0,
-      incidentCount: metrics['incident count'] || 0
+      // Support both snake_case and space-separated keys for compatibility
+      travelTimeMean: metrics['travel_time_mean'] || metrics['travel time mean'] || 0,
+      travelTimeP90: metrics['travel_time_p90'] || metrics['travel time p90'] || 0,
+      incidentCount: metrics['incident_count'] || metrics['incident count'] || 0
     };
   }).filter(report => report.stationName && !isNaN(report.travelTimeMean));
 }

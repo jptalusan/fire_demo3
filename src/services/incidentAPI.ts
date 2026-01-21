@@ -42,14 +42,19 @@ class IncidentAPI {
     filters: IncidentFilters = {}
   ): Promise<APIResponse<IncidentData[]>> {
     try {
-      const response = await fetch(`${this.baseURL}/get-incidents`, {
+      const response = await fetch(`${this.baseURL}/api/incidents/get-incidents`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          modelId,
-          filters
+          model_id: modelId,
+          filters: {
+            date_range: filters.dateRange,
+            incident_type: filters.incidentType,
+            bounds: filters.bounds,
+            incident_types: filters.incidentTypes
+          }
         })
       });
 
@@ -160,7 +165,7 @@ class IncidentAPI {
     parameters: any = {}
   ): Promise<APIResponse<any>> {
     try {
-      const response = await fetch(`${this.baseURL}/generate-incidents`, {
+      const response = await fetch(`${this.baseURL}/api/incidents/generate-incidents`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -172,23 +172,15 @@ export function ControlPanel({
     // Check if all required fields have values
     const allFieldsSelected = requiredFields.every(field => field && field.trim() !== '');
     
-    // Check if incidents are loaded (must have more than 0 incidents)
-    const incidentsLoaded = incidentsCount && incidentsCount > 0;
+    // Incidents are no longer required to be loaded before running simulation
+    // The backend will handle loading incidents based on the date range and model
     
-    // Check if the loaded incidents match the current date range
-    const dateRangeMatches = isDateRangeMatching();
-    
-    return allFieldsSelected && incidentsLoaded && dateRangeMatches;
+    return allFieldsSelected;
   };
 
   // Get list of missing required fields for better user feedback
   const getMissingFields = () => {
     const missing = [];
-    if (!incidentsCount || incidentsCount <= 0) {
-      missing.push('Load Incidents');
-    } else if (!isDateRangeMatching()) {
-      missing.push('Reload Incidents for Date Range');
-    }
     if (!selectedStationData) missing.push('Station Data');
     if (!selectedIncidentModel) missing.push('Incident Model');
     if (!selectedTravelTimeModel) missing.push('Travel Time Model');
@@ -264,7 +256,7 @@ export function ControlPanel({
     const fetchStationFiles = async () => {
       try {
         const response = await fetch(
-          `http://localhost:9999/get-stations`
+          `http://localhost:9999/api/stations/get-stations`
         ); // Fetch station files
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
@@ -647,7 +639,7 @@ export function ControlPanel({
     };
 
     console.log('Running baseline simulation...');
-    const response = await fetch('http://localhost:9999/run-simulation2', {
+    const response = await fetch('http://localhost:9999/api/engine/run-simulation', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(baselinePayload),
@@ -761,7 +753,7 @@ export function ControlPanel({
 
         console.log('Sending counterfactual comparison request with payload:', comparisonPayload);
         
-        const response = await fetch('http://localhost:9999/run-comparison', {
+        const response = await fetch('http://localhost:9999/api/engine/run-comparison', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -847,7 +839,7 @@ export function ControlPanel({
           
         console.log('Sending simulation request with payload:', payload);
         
-        const response = await fetch('http://localhost:9999/run-simulation2', {
+        const response = await fetch('http://localhost:9999/api/engine/run-simulation', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

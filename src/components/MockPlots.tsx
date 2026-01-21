@@ -657,6 +657,10 @@ export const MockPlotsContainer: React.FC<MockPlotsContainerProps> = ({
     }));
   };
 
+  // Handle both standard mode and counterfactual mode
+  const resultsData = simulationResults?.newConfig || simulationResults;
+  const hasStationReport = resultsData && resultsData.station_report;
+
   return (
     <div className="space-y-6">
       {/* Main Analytics Grid */}
@@ -677,13 +681,13 @@ export const MockPlotsContainer: React.FC<MockPlotsContainerProps> = ({
         <h3 className="text-lg font-semibold flex items-center gap-2">
           <Clock className="h-5 w-5" />
           Detailed Station Analysis
-          {simulationResults && simulationResults.station_report && (
+          {hasStationReport && (
             <Badge variant="default" className="ml-2">Real Data Available</Badge>
           )}
         </h3>
         
-        {simulationResults && simulationResults.station_report ? 
-          simulationResults.station_report.map((stationItem: any, index: number) => {
+        {hasStationReport ?
+          resultsData.station_report.map((stationItem: any, index: number) => {
             const stationName = Object.keys(stationItem)[0];
             const stationData = Object.values(stationItem)[0] as any;
             const stationNum = stationName.replace('Station ', '');
@@ -710,7 +714,7 @@ export const MockPlotsContainer: React.FC<MockPlotsContainerProps> = ({
                         </Button>
                       </div>
                       <div className="text-sm text-gray-600">
-                        {stationData['incident count']} incidents | Avg Response: {(stationData['travel time mean'] / 60).toFixed(1)} min | Avg Service: {(stationData['average service time'] / 60).toFixed(1)} min
+                        {stationData['incident_count'] || stationData['incident count']} incidents | Avg Response: {((stationData['travel_time_mean'] || stationData['travel time mean']) / 60).toFixed(1)} min | Avg Service: {((stationData['average_service_time'] || stationData['average service time']) / 60).toFixed(1)} min
                       </div>
                     </CardHeader>
                   </CollapsibleTrigger>
@@ -724,7 +728,7 @@ export const MockPlotsContainer: React.FC<MockPlotsContainerProps> = ({
                           <ResponsiveContainer width="100%" height={200}>
                             <BarChart data={
                               (() => {
-                                const times = stationData['travel times'].map((time: number) => time / 60); // Convert to minutes
+                                const times = (stationData['travel_times'] || stationData['travel times']).map((time: number) => time / 60); // Convert to minutes
                                 const bins = Array.from({ length: 8 }, (_, i) => ({
                                   range: `${i * 2}-${(i + 1) * 2}`,
                                   count: 0,
@@ -763,7 +767,7 @@ export const MockPlotsContainer: React.FC<MockPlotsContainerProps> = ({
                           <ResponsiveContainer width="100%" height={200}>
                             <BarChart data={
                               (() => {
-                                const times = stationData['service times'].map((time: number) => Math.max(0, time / 60)); // Convert to minutes, ensure positive
+                                const times = (stationData['service_times'] || stationData['service times']).map((time: number) => Math.max(0, time / 60)); // Convert to minutes, ensure positive
                                 const maxTime = Math.max(...times);
                                 const binSize = Math.max(10, Math.ceil(maxTime / 8)); // At least 10 minutes per bin
                                 
@@ -811,25 +815,25 @@ export const MockPlotsContainer: React.FC<MockPlotsContainerProps> = ({
                         <div className="bg-blue-50 p-3 rounded">
                           <p className="text-xs text-gray-600">Min Response</p>
                           <p className="text-sm font-semibold text-blue-600">
-                            {Math.min(...stationData['travel times'].map((t: number) => t / 60)).toFixed(1)} min
+                            {Math.min(...(stationData['travel_times'] || stationData['travel times']).map((t: number) => t / 60)).toFixed(1)} min
                           </p>
                         </div>
                         <div className="bg-blue-50 p-3 rounded">
                           <p className="text-xs text-gray-600">Max Response</p>
                           <p className="text-sm font-semibold text-blue-600">
-                            {Math.max(...stationData['travel times'].map((t: number) => t / 60)).toFixed(1)} min
+                            {Math.max(...(stationData['travel_times'] || stationData['travel times']).map((t: number) => t / 60)).toFixed(1)} min
                           </p>
                         </div>
                         <div className="bg-green-50 p-3 rounded">
                           <p className="text-xs text-gray-600">Min Service</p>
                           <p className="text-sm font-semibold text-green-600">
-                            {Math.min(...stationData['service times'].map((t: number) => Math.max(0, t / 60))).toFixed(1)} min
+                            {Math.min(...(stationData['service_times'] || stationData['service times']).map((t: number) => Math.max(0, t / 60))).toFixed(1)} min
                           </p>
                         </div>
                         <div className="bg-green-50 p-3 rounded">
                           <p className="text-xs text-gray-600">Max Service</p>
                           <p className="text-sm font-semibold text-green-600">
-                            {Math.max(...stationData['service times'].map((t: number) => Math.max(0, t / 60))).toFixed(1)} min
+                            {Math.max(...(stationData['service_times'] || stationData['service times']).map((t: number) => Math.max(0, t / 60))).toFixed(1)} min
                           </p>
                         </div>
                       </div>

@@ -19,6 +19,9 @@ interface PlotsTabProps {
 
 export function PlotsTab({ simulationResults, historicalIncidentStats, incidents = [] }: PlotsTabProps) {
   console.log('PlotsTab simulationResults:', simulationResults);
+  console.log('PlotsTab has comparison:', !!simulationResults?.comparison);
+  console.log('PlotsTab has newConfig:', !!simulationResults?.newConfig);
+  console.log('PlotsTab has baseline:', !!simulationResults?.baseline);
   
   const [advancedAnalyticsOpen, setAdvancedAnalyticsOpen] = useState(false);
   const [fullscreenChart, setFullscreenChart] = useState<{
@@ -29,6 +32,8 @@ export function PlotsTab({ simulationResults, historicalIncidentStats, incidents
   // Build response time chart data from simulation station_report
   // Handle both regular results and counterfactual comparison results
   const resultsData = simulationResults?.newConfig || simulationResults;
+  console.log('PlotsTab resultsData:', resultsData);
+  console.log('PlotsTab resultsData.station_report:', resultsData?.station_report);
   
   let stationReports: StationReport[] = [];
   let stationTravelTimes: StationTravelTimes[] = [];
@@ -609,16 +614,65 @@ export function PlotsTab({ simulationResults, historicalIncidentStats, incidents
 
       {/* Comparison Charts for Changed Stations (Counterfactual Mode) */}
       {(() => {
-        // Filter stations that have both baseline and new config data (excluding new stations)
-        const stationsWithComparison = simulationResults?.comparison?.station_comparison?.filter(
-          (station: any) => 
-            station?.status === 'existing_station' &&
-            station?.average_travel_time?.baseline !== null &&
-            station?.average_travel_time?.new !== null &&
-            station?.average_travel_time?.difference !== 0
-        ) || [];
+        // Check if we have both baseline and newConfig data
+        if (!simulationResults?.baseline?.station_report || !simulationResults?.newConfig?.station_report) {
+          return null;
+        }
 
-        if (stationsWithComparison.length === 0) return null;
+        // Process baseline and newConfig station reports
+        const baselineReports = processStationReport(simulationResults.baseline.station_report);
+        const newConfigReports = processStationReport(simulationResults.newConfig.station_report);
+        
+        console.log('Baseline station reports:', baselineReports);
+        console.log('New config station reports:', newConfigReports);
+
+        // Create a map of baseline data for easy lookup
+        const baselineMap = new Map(baselineReports.map(r => [r.stationName, r]));
+        const newConfigMap = new Map(newConfigReports.map(r => [r.stationName, r]));
+
+        // Get all station names from both datasets
+        const allStationNames = new Set([...baselineMap.keys(), ...newConfigMap.keys()]);
+
+        // Build comparison data - include all stations that exist in either baseline or newConfig
+        const stationsWithComparison = Array.from(allStationNames)
+          .map(stationName => {
+            const baseline = baselineMap.get(stationName);
+            const newConfig = newConfigMap.get(stationName);
+            
+            // Determine if this is a new station or existing
+            const isNewStation = !baseline && !!newConfig;
+            
+            return {
+              station_name: stationName,
+              status: isNewStation ? 'new_station' : 'existing_station',
+              average_travel_time: {
+                baseline: baseline?.travelTimeMean || 0,
+                new: newConfig?.travelTimeMean || 0,
+                difference: (newConfig?.travelTimeMean || 0) - (baseline?.travelTimeMean || 0)
+              },
+              p90_travel_time: {
+                baseline: baseline?.travelTimeP90 || 0,
+                new: newConfig?.travelTimeP90 || 0,
+                difference: (newConfig?.travelTimeP90 || 0) - (baseline?.travelTimeP90 || 0)
+              },
+              total_incidents: {
+                baseline: baseline?.incidentCount || 0,
+                new: newConfig?.incidentCount || 0,
+                difference: (newConfig?.incidentCount || 0) - (baseline?.incidentCount || 0)
+              }
+            };
+          })
+          .filter(station => {
+            // Include stations that have data in at least one configuration
+            return station.average_travel_time.baseline > 0 || station.average_travel_time.new > 0;
+          });
+
+        console.log('Stations with comparison data:', stationsWithComparison);
+
+        if (stationsWithComparison.length === 0) {
+          console.log('No stations with comparison data found');
+          return null;
+        }
 
         return (
           <div className="space-y-4 mb-6">
@@ -627,7 +681,9 @@ export function PlotsTab({ simulationResults, historicalIncidentStats, incidents
                 Counterfactual Analysis
               </Badge>
               <span className="text-sm text-muted-foreground">
-                Comparing {stationsWithComparison.length} existing stations with changes
+                Comparing {stationsWithComparison.filter(s => s.status === 'existing_station').length} existing stations
+                {stationsWithComparison.some(s => s.status === 'new_station') && 
+                  ` + ${stationsWithComparison.filter(s => s.status === 'new_station').length} new station(s)`}
               </span>
             </div>
 
@@ -1253,8 +1309,9 @@ export function PlotsTab({ simulationResults, historicalIncidentStats, incidents
                             const stationData = resultsData.station_report.find((item: any) => 
                               Object.keys(item)[0] === `Station ${stationNum.padStart(2, '0')}`
                             );
-                            const serviceTime = stationData ? 
-                              (Object.values(stationData)[0] as any)['average service time'] / 60 : 0;
+                            const stationMetrics = stationData ? (Object.values(stationData)[0] as any) : null;
+                            const serviceTime = stationMetrics ? 
+                              ((stationMetrics['average_service_time'] || stationMetrics['average service time']) / 60) : 0;
                             return {
                               station: stationNum,
                               serviceTime: Number(serviceTime.toFixed(2))
@@ -1315,8 +1372,9 @@ export function PlotsTab({ simulationResults, historicalIncidentStats, incidents
                       const stationData = resultsData.station_report.find((item: any) => 
                         Object.keys(item)[0] === `Station ${stationNum.padStart(2, '0')}`
                       );
-                      const serviceTime = stationData ? 
-                        (Object.values(stationData)[0] as any)['average service time'] / 60 : 0; // Convert seconds to minutes
+                      const stationMetrics = stationData ? (Object.values(stationData)[0] as any) : null;
+                      const serviceTime = stationMetrics ? 
+                        ((stationMetrics['average_service_time'] || stationMetrics['average service time']) / 60) : 0; // Convert seconds to minutes
                       
                       return {
                         station: stationNum,
