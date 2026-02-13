@@ -4,9 +4,10 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Separator } from './ui/separator';
-import { Play, Settings, ChevronLeft, ChevronRight, Download } from 'lucide-react';
+import { Play, Settings, ChevronLeft, ChevronRight, Download, GitCompare } from 'lucide-react';
 import { ProcessedStation, Apparatus } from '../utils/dataProcessing';
 import controlPanelConfig from '../config/controlPanelConfig.json';
+import { Switch } from './ui/switch';
 
 // Interface for apparatus counts (matching App.tsx and MapSection)
 interface ApparatusCounts {
@@ -27,6 +28,10 @@ interface ControlPanelProps {
   originalApparatusCounts: Map<string, ApparatusCounts>;
   selectedStationData?: string;
   onStationDataChange?: (data: string) => void;
+  selectedGridSize?: string;
+  onGridSizeChange?: (gridSize: string) => void;
+  selectedNewStations?: number;
+  onNewStationsChange?: (count: number) => void;
   onStationsChange: (stations: ProcessedStation[]) => void;
   selectedDispatchPolicy?: string;
   onDispatchPolicyChange?: (policy: string) => void;
@@ -34,15 +39,22 @@ interface ControlPanelProps {
   onServiceZoneFileChange?: (file: string) => void;
   selectedIncidentModel?: string;
   onIncidentModelChange?: (model: string) => void;
+  selectedIncidentType?: string;
+  onIncidentTypeChange?: (type: string) => void;
   startDate?: Date;
   endDate?: Date;
   onStartDateChange?: (date: Date | undefined) => void;
   onEndDateChange?: (date: Date | undefined) => void;
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
+  incidentsCount?: number;
   onHistoricalIncidentStatsChange?: (stats: any) => void;
   onHistoricalIncidentErrorChange?: (error: string | null) => void;
   onIncidentsChange?: (incidents: any[]) => void;
+  isCounterfactualMode?: boolean;
+  onCounterfactualModeChange?: (mode: boolean) => void;
+  baselineResults?: any;
+  onBaselineResultsChange?: (results: any) => void;
 }
 
 export function ControlPanel({
@@ -59,6 +71,10 @@ export function ControlPanel({
   originalApparatusCounts,
   selectedStationData,
   onStationDataChange,
+  selectedGridSize,
+  onGridSizeChange,
+  selectedNewStations,
+  onNewStationsChange,
   onStationsChange, // Add this line
   selectedDispatchPolicy = controlPanelConfig.dispatchPolicies.default,
   onDispatchPolicyChange,
@@ -66,6 +82,8 @@ export function ControlPanel({
   onServiceZoneFileChange,
   selectedIncidentModel = controlPanelConfig.incidentModels.default,
   onIncidentModelChange,
+  selectedIncidentType = 'ems_fire',
+  onIncidentTypeChange,
   startDate,
   endDate,
   onStartDateChange,
@@ -75,6 +93,11 @@ export function ControlPanel({
   onHistoricalIncidentStatsChange,
   onHistoricalIncidentErrorChange,
   onIncidentsChange,
+  incidentsCount = 0,
+  isCounterfactualMode = false,
+  onCounterfactualModeChange,
+  baselineResults,
+  onBaselineResultsChange,
 }: ControlPanelProps) {
   const [fireStationsFile, setFireStationsFile] = useState<File | null>(null);
   const [incidentsFile, setIncidentsFile] = useState<File | null>(null);
@@ -84,6 +107,14 @@ export function ControlPanel({
   const [stationFiles, setStationFiles] = useState<string[]>([]);
   const [serviceZoneFiles, setServiceZoneFiles] = useState<string[]>([]);
   const [isSimulating, setIsSimulating] = useState(false);
+  const [isLoadingIncidents, setIsLoadingIncidents] = useState(false);
+  const [incidentLoadError, setIncidentLoadError] = useState<string | null>(null);
+  
+  // Track the date range for currently loaded incidents
+  const [loadedIncidentsDateRange, setLoadedIncidentsDateRange] = useState<{
+    startDate: Date | null;
+    endDate: Date | null;
+  }>({ startDate: null, endDate: null });
   
   // Model selection states - start with default values
   const [selectedTravelTimeModel, setSelectedTravelTimeModel] = useState(controlPanelConfig.travelTimeModels.default);
@@ -97,11 +128,36 @@ export function ControlPanel({
     }
   }, [selectedStationData]);
 
+  // Clear incident load error when parameters change
+  useEffect(() => {
+    setIncidentLoadError(null);
+  }, [selectedIncidentModel, startDate, endDate]);
+
   useEffect(() => {
     if (!selectedDispatchPolicy) {
       // Reset models when dispatch policy is cleared
     }
   }, [selectedDispatchPolicy]);
+
+  // Automatically switch away from firebeats when optimized stations are selected
+  useEffect(() => {
+    if (selectedStationData === 'optimized_stations' && selectedDispatchPolicy === 'firebeats') {
+      // Switch to nearest available policy (default)
+      onDispatchPolicyChange?.('nearest');
+    }
+  }, [selectedStationData, selectedDispatchPolicy, onDispatchPolicyChange]);
+
+  // Helper function to check if current date range matches loaded incidents date range
+  const isDateRangeMatching = () => {
+    // If no date range is selected, consider it matching (for models that don't use date ranges)
+    if (!startDate || !endDate) {
+      return !loadedIncidentsDateRange.startDate && !loadedIncidentsDateRange.endDate;
+    }
+    
+    // Compare the current date range with the loaded incidents date range
+    return loadedIncidentsDateRange.startDate?.getTime() === startDate.getTime() &&
+           loadedIncidentsDateRange.endDate?.getTime() === endDate.getTime();
+  };
 
   // Validation function to check if all required fields are selected
   const isFormValid = () => {
@@ -116,10 +172,8 @@ export function ControlPanel({
     // Check if all required fields have values
     const allFieldsSelected = requiredFields.every(field => field && field.trim() !== '');
     
-    // If firebeats policy is selected, also check service zone file
-    if (selectedDispatchPolicy === 'firebeats') {
-      return allFieldsSelected && selectedServiceZoneFile && selectedServiceZoneFile.trim() !== '';
-    }
+    // Incidents are no longer required to be loaded before running simulation
+    // The backend will handle loading incidents based on the date range and model
     
     return allFieldsSelected;
   };
@@ -132,9 +186,6 @@ export function ControlPanel({
     if (!selectedTravelTimeModel) missing.push('Travel Time Model');
     if (!selectedServiceTimeModel) missing.push('Service Time Model');
     if (!selectedDispatchPolicy) missing.push('Dispatch Policy');
-    if (selectedDispatchPolicy === 'firebeats' && !selectedServiceZoneFile) {
-      missing.push('Service Zones');
-    }
     return missing;
   };
 
@@ -146,31 +197,66 @@ export function ControlPanel({
     return result;
   };
 
-  useEffect(() => {
-    const fetchIncidentFiles = async () => {
-      try {
-        const response = await fetch(
-          `http://localhost:8000/get-incidents`
-        ); // Use backend URL from .env
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const data = await response.json(); // Parse the JSON response
-        const incidents = handleApiResponse(data, 'incidents'); // Extract 'incidents' from response
-        setIncidentFiles(incidents);
-      } catch (error) {
-        console.error('Error fetching incident files:', error);
-      }
-    };
+  // Removed automatic fetch on mount - incident files will be loaded only when needed
+  // useEffect(() => {
+  //   const fetchIncidentFiles = async () => {
+  //     // 1. Create a new AbortController instance
+  //     const controller = new AbortController();
+  //     const signal = controller.signal;
 
-    fetchIncidentFiles();
-  }, []);
+  //     // Define your desired timeout duration in milliseconds (e.g., 10 seconds)
+  //     const TIMEOUT_MS = 600000; 
+
+  //     // 2. Set a timer to abort the request after the timeout
+  //     const timeoutId = setTimeout(() => {
+  //       controller.abort();
+  //     }, TIMEOUT_MS);
+
+  //     try {
+  //       const response = await fetch(
+  //         `http://localhost:9999/get-incidents`,
+  //         { signal } // 3. Pass the signal to the fetch options
+  //       );
+
+  //       // 4. Clear the timeout if the request completes before the timer fires
+  //       clearTimeout(timeoutId); 
+
+  //       if (!response.ok) {
+  //         throw new Error(`HTTP error! status: ${response.status}`);
+  //       }
+        
+  //       const data = await response.json();
+  //       const incidents = handleApiResponse(data, 'incidents');
+  //       setIncidentFiles(incidents);
+
+  //     } catch (error) {
+  //           // Use a type guard to safely check if the error is an object
+  //           // and has a 'name' property of type string.
+  //           if (
+  //             error instanceof Error && 
+  //             error.name === 'AbortError'
+  //           ) {
+  //             console.error('Fetch aborted due to timeout:', error);
+  //             // Add logic for timeout handling here (e.g., set a state flag)
+  //           } else {
+  //             // This handles all other errors (network issues, JSON parsing, etc.)
+  //             console.error('Error fetching incident files:', error);
+  //           }
+  //     }
+  //   };
+
+  //   fetchIncidentFiles(); 
+  //   // You may also want to return a cleanup function from useEffect 
+  //   // to abort the request if the component unmounts before it completes:
+  //   // return () => { controller.abort(); };
+
+  // }, []);
 
   useEffect(() => {
     const fetchStationFiles = async () => {
       try {
         const response = await fetch(
-          `http://localhost:8000/get-stations`
+          `http://localhost:9999/api/stations/get-stations`
         ); // Fetch station files
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
@@ -186,116 +272,11 @@ export function ControlPanel({
     fetchStationFiles();
   }, []);
 
-  useEffect(() => {
-    const fetchServiceZoneFiles = async () => {
-      try {
-        // For now, use the same endpoint as stations - you may need to create a separate endpoint
-        const response = await fetch(
-          `http://localhost:8000/get-shapes`
-        ); // This might need to be changed to a service zones endpoint
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const data = await response.json();
-        const zones = handleApiResponse(data, 'shapes'); // This might need to be 'zones' or similar
-        setServiceZoneFiles(zones);
-      } catch (error) {
-        console.error('Error fetching service zone files:', error);
-      }
-    };
 
-    // Only fetch service zone files if firebeats policy is selected
-    if (selectedDispatchPolicy === 'firebeats') {
-      fetchServiceZoneFiles();
-    }
-  }, [selectedDispatchPolicy]);
 
   // Process historical incidents when model changes to historical_incidents
-  useEffect(() => {
-    const processHistoricalIncidents = async () => {
-      if (selectedIncidentModel === 'historical_incidents') {
-        try {
-          // Get the incident model configuration
-          const incidentModelConfig = controlPanelConfig.incidentModels.options.find(
-            model => model.id === 'historical_incidents'
-          );
-          
-          if (incidentModelConfig?.dataFile) {
-            console.log('Processing historical incidents from:', incidentModelConfig.dataFile);
-            
-            // Fetch the CSV file from public folder (served by Vite dev server)
-            const csvResponse = await fetch(`/data${incidentModelConfig.dataFile}`);
-            if (!csvResponse.ok) {
-              throw new Error(`Failed to fetch CSV: ${csvResponse.status}`);
-            }
-            const csvData = await csvResponse.text();
-            
-            // Send to process-incidents endpoint
-            const response = await fetch('http://localhost:8000/process-incidents', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'text/csv',
-              },
-              body: csvData
-            });
-            
-            if (!response.ok) {
-              throw new Error(`Failed to process incidents: ${response.status}`);
-            }
-            
-            const result = await response.json();
-            console.log('Historical incident processing result:', result);
-            
-            // Pass results to parent component
-            if (onHistoricalIncidentStatsChange) {
-              onHistoricalIncidentStatsChange(result);
-            }
-            // Clear any previous errors
-            if (onHistoricalIncidentErrorChange) {
-              onHistoricalIncidentErrorChange(null);
-            }
-          }
-        } catch (error) {
-          console.error('Error processing historical incidents:', error);
-          
-          // Determine error message based on the type of error
-          let errorMessage = 'An error occurred while processing historical incidents.';
-          if (error instanceof Error) {
-            if (error.message.includes('fetch') || error.message.includes('Failed to fetch') || 
-                error.name === 'TypeError' && error.message.includes('NetworkError')) {
-              errorMessage = 'Backend server is not reachable.';
-            } else if (error.message.includes('Failed to process incidents')) {
-              errorMessage = 'Backend server failed to process the incidents data.';
-            } else if (error.message.includes('Failed to fetch CSV')) {
-              errorMessage = 'Unable to load incidents data file.';
-            }
-          } else if (typeof error === 'object' && error !== null && 'code' in error) {
-            // Handle network errors like ECONNREFUSED
-            errorMessage = 'Backend server is not reachable.';
-          }
-          
-          // Pass error to parent component
-          if (onHistoricalIncidentErrorChange) {
-            onHistoricalIncidentErrorChange(errorMessage);
-          }
-          // Clear stats on error
-          if (onHistoricalIncidentStatsChange) {
-            onHistoricalIncidentStatsChange(null);
-          }
-        }
-      } else {
-        // Clear stats and errors when switching away from historical incidents
-        if (onHistoricalIncidentStatsChange) {
-          onHistoricalIncidentStatsChange(null);
-        }
-        if (onHistoricalIncidentErrorChange) {
-          onHistoricalIncidentErrorChange(null);
-        }
-      }
-    };
-
-    processHistoricalIncidents();
-  }, [selectedIncidentModel, onHistoricalIncidentStatsChange, onHistoricalIncidentErrorChange]);
+  // Note: Historical incident processing is now handled by the manual "Load Incidents" button
+  // and automatic loading in MapSection component. The old CSV-based processing is removed.
 
   // Process synthetic incidents when model changes to synthetic_incidents
   useEffect(() => {
@@ -312,53 +293,48 @@ export function ControlPanel({
 
           console.log('Generating synthetic incidents for date range:', startDate, 'to', endDate);
 
-          // Step 1: Generate incidents from backend
-          const generateResponse = await fetch('http://localhost:8000/generate-incidents', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
+          // Import the incident API service
+          const { incidentAPI } = await import('../services/incidentAPI');
+
+          // Step 1: Generate incidents using the API service
+          const generateResponse = await incidentAPI.generateIncidents(
+            selectedStationData || 'default_stations',
+            {
+              start: startDate.toISOString(),
+              end: endDate.toISOString()
             },
-            body: JSON.stringify({
-              start_date: startDate.toISOString().split('T')[0], // YYYY-MM-DD format
-              end_date: endDate.toISOString().split('T')[0]
-            }),
-          });
+            { incidentType: selectedIncidentType } // Include incident type
+          );
 
-          if (!generateResponse.ok) {
-            throw new Error(`Backend failed to generate incidents: ${generateResponse.statusText}`);
+          if (generateResponse.status !== 'success') {
+            throw new Error(`Backend failed to generate incidents: ${generateResponse.message}`);
           }
 
-          const csvData = await generateResponse.text();
-          console.log('Generated synthetic incidents CSV length:', csvData.length);
+          console.log('Synthetic incidents generated successfully:', generateResponse.data);
 
-          // Step 2: Process CSV for statistics
-          const statsResponse = await fetch('http://localhost:8000/process-incidents', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'text/csv',
-            },
-            body: csvData,
-          });
+          // Step 2: Get incident statistics from the API
+          const statsResponse = await incidentAPI.getIncidentStatistics(
+            'synthetic_incidents',
+            {
+              start: startDate.toISOString(),
+              end: endDate.toISOString()
+            }
+          );
 
-          if (!statsResponse.ok) {
-            throw new Error(`Backend failed to process incidents: ${statsResponse.statusText}`);
+          if (statsResponse.status === 'success' && statsResponse.data) {
+            console.log('Synthetic incident statistics:', statsResponse.data);
+            
+            // Update statistics
+            if (onHistoricalIncidentStatsChange) {
+              onHistoricalIncidentStatsChange(statsResponse.data);
+            }
           }
 
-          const stats = await statsResponse.json();
-          console.log('Synthetic incident processing result:', stats);
-          
-          // Update statistics
-          if (onHistoricalIncidentStatsChange) {
-            onHistoricalIncidentStatsChange(stats);
-          }
-
-          // Step 3: Save CSV to localStorage for map to read
-          localStorage.setItem('synth-incidents.csv', csvData);
+          // Set timestamp to trigger map reload
           localStorage.setItem('synth-incidents-timestamp', Date.now().toString());
-          console.log('Saved synthetic incidents CSV to localStorage:', csvData.length, 'characters');
+          console.log('Synthetic incidents ready for use');
           
-          // Clear any passed incidents since we're now using localStorage approach
-          // (No longer needed - using localStorage instead of props)
+          // No longer need localStorage CSV storage since we're using API
 
           // Clear any previous errors
           if (onHistoricalIncidentErrorChange) {
@@ -399,8 +375,7 @@ export function ControlPanel({
       }
     };
 
-    processSyntheticIncidents();
-  }, [selectedIncidentModel, startDate, endDate, onHistoricalIncidentStatsChange, onHistoricalIncidentErrorChange]);
+  }, [selectedIncidentModel]);
 
   // Helper function to parse CSV into incident objects for the map
   const parseCSVToIncidents = (csvData: string) => {
@@ -622,117 +597,409 @@ export function ControlPanel({
     }
   };
 
+  // Helper function to run baseline simulation in counterfactual mode
+  const runBaselineSimulation = async (controller: AbortController, signal: AbortSignal) => {
+    const baselinePayload = {
+      stationData: 'default_stations', // Always use default stations for baseline
+      dateRange: {
+        startDate: startDate ? startDate.toISOString() : null,
+        endDate: endDate ? endDate.toISOString() : null
+      },
+      models: {
+        incident: selectedIncidentModel,
+        travelTime: selectedTravelTimeModel,
+        serviceTime: selectedServiceTimeModel,
+        dispatch: selectedDispatchPolicy
+      },
+      selectedIncidentFile,
+      selectedStationFile,
+      selectedServiceZoneFile: selectedDispatchPolicy === 'firebeats' ? selectedServiceZoneFile : undefined,
+      dispatchPolicy: selectedDispatchPolicy,
+      stations: stations.map(station => {
+        const apparatusCounts = stationApparatusCounts.get(station.id);
+        const apparatus = apparatusCounts 
+          ? convertApparatusCountsToSimpleArray(apparatusCounts)
+          : []; 
+        return {
+          id: station.id,
+          name: station.displayName,
+          lat: station.lat,
+          lon: station.lon, 
+          apparatus: apparatus,
+          serviceZone: station.serviceZone, 
+        };
+      }),
+      responseTime: parseInt(responseTime),
+      maxDistance: parseFloat(maxDistance),
+      options: {
+        coverageAnalysis: true,
+        responseTimeAnalysis: true,
+        resourceOptimization: false
+      }
+    };
+
+    console.log('Running baseline simulation...');
+    const response = await fetch('http://localhost:9999/api/engine/run-simulation', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(baselinePayload),
+      signal: signal
+    });
+
+    if (!response.ok) {
+      throw new Error(`Baseline simulation failed! status: ${response.status}`);
+    }
+
+    const baselineResult = await response.json();
+    console.log('Baseline simulation complete:', baselineResult);
+
+    if (baselineResult.status === 'success' && onBaselineResultsChange) {
+      onBaselineResultsChange(baselineResult);
+    }
+
+    return baselineResult;
+  };
+
   const handleRunSimulation = async () => {
+    // Define the timeout duration (e.g., 120 seconds)
+    const TIMEOUT_MS = 12000000; 
+
+    // 1. Create a new AbortController instance
+    const controller = new AbortController();
+    const signal = controller.signal;
+
+    // 2. Set a timer to abort the request after the timeout
+    const timeoutId = setTimeout(() => {
+        controller.abort();
+    }, TIMEOUT_MS);
+
     try {
       setIsSimulating(true); // Disable the button and show loading state
-      
-      // Prepare the payload with current station positions and configuration
-      const payload = {
-        // Input configurations
-        stationData: selectedStationData,
-        dateRange: {
-          startDate: startDate ? startDate.toISOString() : null,
-          endDate: endDate ? endDate.toISOString() : null
-        },
-        
-        // Model configurations
-        models: {
-          incident: selectedIncidentModel,
-          travelTime: selectedTravelTimeModel,
-          serviceTime: selectedServiceTimeModel,
-          dispatch: selectedDispatchPolicy
-        },
-        
-        // Legacy fields for backward compatibility
-        selectedIncidentFile,
-        selectedStationFile,
-        selectedServiceZoneFile: selectedDispatchPolicy === 'firebeats' ? selectedServiceZoneFile : undefined,
-        dispatchPolicy: selectedDispatchPolicy,
-        
-        stations: stations.map(station => {
-          // Use apparatus counts from the new system if available, otherwise fall back to old system
-          const apparatusCounts = stationApparatusCounts.get(station.id);
-          const apparatus = apparatusCounts 
-            ? convertApparatusCountsToSimpleArray(apparatusCounts)
-            : []; // Fallback to empty array for simple format
-            
-          return {
-            id: station.id,
-            name: station.displayName,
-            lat: station.lat,
-            lon: station.lon, // Changed from 'lng' to 'lon' to match CSV
-            apparatus: apparatus,
-            serviceZone: station.serviceZone, // Include serviceZone in the payload
-          };
-        }),
-        responseTime: parseInt(responseTime),
-        maxDistance: parseFloat(maxDistance),
-        options: {
-          coverageAnalysis: true,
-          responseTimeAnalysis: true,
-          resourceOptimization: false // Based on the checkbox state
-        }
-      };
-      
-      console.log('Sending simulation request with payload:', payload);
-      
-      const response = await fetch('http://localhost:8000/run-simulation', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload)
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      const result = await response.json();
-      console.log('Simulation result:', result);
 
-      // Check if the status is success
-      if (result.status === 'success') {
-        // Call the parent component's callback to enable the tabs
-        if (onSimulationSuccess) {
-          onSimulationSuccess(result);
+      // Start timing the API call
+      const startTime = performance.now();
+
+      // Counterfactual mode: call comparison endpoint
+      if (isCounterfactualMode) {
+        const comparisonPayload = {
+          // Baseline configuration (always default stations)
+          baseline: {
+            stationData: 'default_stations',
+            dateRange: {
+              startDate: startDate ? startDate.toISOString() : null,
+              endDate: endDate ? endDate.toISOString() : null
+            },
+            incidentType: selectedIncidentType,
+            models: {
+              incident: selectedIncidentModel,
+              travelTime: selectedTravelTimeModel,
+              serviceTime: selectedServiceTimeModel,
+              dispatch: selectedDispatchPolicy
+            },
+            selectedIncidentFile,
+            selectedStationFile,
+            selectedServiceZoneFile: selectedDispatchPolicy === 'firebeats' ? selectedServiceZoneFile : undefined,
+            dispatchPolicy: selectedDispatchPolicy,
+            responseTime: parseInt(responseTime),
+            maxDistance: parseFloat(maxDistance),
+            options: {
+              coverageAnalysis: true,
+              responseTimeAnalysis: true,
+              resourceOptimization: false
+            }
+          },
+          
+          // New configuration (custom or optimized stations)
+          newConfig: {
+            stationData: selectedStationData,
+            dateRange: {
+              startDate: startDate ? startDate.toISOString() : null,
+              endDate: endDate ? endDate.toISOString() : null
+            },
+            incidentType: selectedIncidentType,
+            models: {
+              incident: selectedIncidentModel,
+              travelTime: selectedTravelTimeModel,
+              serviceTime: selectedServiceTimeModel,
+              dispatch: selectedDispatchPolicy
+            },
+            selectedIncidentFile,
+            selectedStationFile,
+            selectedServiceZoneFile: selectedDispatchPolicy === 'firebeats' ? selectedServiceZoneFile : undefined,
+            dispatchPolicy: selectedDispatchPolicy,
+            stations: stations.map(station => {
+              const apparatusCounts = stationApparatusCounts.get(station.id);
+              const apparatus = apparatusCounts 
+                ? convertApparatusCountsToSimpleArray(apparatusCounts)
+                : []; 
+              return {
+                id: station.id,
+                name: station.displayName,
+                lat: station.lat,
+                lon: station.lon, 
+                apparatus: apparatus,
+                serviceZone: station.serviceZone, 
+              };
+            }),
+            responseTime: parseInt(responseTime),
+            maxDistance: parseFloat(maxDistance),
+            options: {
+              coverageAnalysis: true,
+              responseTimeAnalysis: true,
+              resourceOptimization: false
+            }
+          }
+        };
+
+        console.log('Sending counterfactual comparison request with payload:', comparisonPayload);
+        
+        const response = await fetch('http://localhost:9999/api/engine/run-comparison', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(comparisonPayload),
+          signal: signal
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const result = await response.json();
+        
+        // Calculate API call duration
+        const endTime = performance.now();
+        const apiCallDuration = (endTime - startTime) / 1000;
+        result.api_call_duration = apiCallDuration;
+        
+        console.log('Comparison result:', result);
+        console.log(`API call took ${apiCallDuration.toFixed(2)} seconds`);
+
+        // Store baseline results and trigger success callback with comparison data
+        if (result.status === 'success') {
+          if (result.baseline && onBaselineResultsChange) {
+            onBaselineResultsChange(result.baseline);
+          }
+          if (onSimulationSuccess) {
+            // Pass the entire result object which includes baseline, newConfig, and comparison
+            onSimulationSuccess(result);
+          }
+        }
+
+      } else {
+        // Standard mode: call regular simulation endpoint
+        const payload = {
+          // Input configurations
+          stationData: selectedStationData,
+          dateRange: {
+            startDate: startDate ? startDate.toISOString() : null,
+            endDate: endDate ? endDate.toISOString() : null
+          },
+          incidentType: selectedIncidentType,
+          
+          // Model configurations
+          models: {
+            incident: selectedIncidentModel,
+            travelTime: selectedTravelTimeModel,
+            serviceTime: selectedServiceTimeModel,
+            dispatch: selectedDispatchPolicy
+          },
+          
+          // Legacy fields for backward compatibility
+          selectedIncidentFile,
+          selectedStationFile,
+          selectedServiceZoneFile: selectedDispatchPolicy === 'firebeats' ? selectedServiceZoneFile : undefined,
+          dispatchPolicy: selectedDispatchPolicy,
+          
+          stations: stations.map(station => {
+            const apparatusCounts = stationApparatusCounts.get(station.id);
+            const apparatus = apparatusCounts 
+              ? convertApparatusCountsToSimpleArray(apparatusCounts)
+              : []; 
+            return {
+              id: station.id,
+              name: station.displayName,
+              lat: station.lat,
+              lon: station.lon, 
+              apparatus: apparatus,
+              serviceZone: station.serviceZone, 
+            };
+          }),
+          responseTime: parseInt(responseTime),
+          maxDistance: parseFloat(maxDistance),
+          options: {
+            coverageAnalysis: true,
+            responseTimeAnalysis: true,
+            resourceOptimization: false
+          }
+        };
+          
+        console.log('Sending simulation request with payload:', payload);
+        
+        const response = await fetch('http://localhost:9999/api/engine/run-simulation', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(payload),
+            signal: signal
+        });
+        
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const result = await response.json();
+        
+        // Calculate API call duration
+        const endTime = performance.now();
+        const apiCallDuration = (endTime - startTime) / 1000; 
+        
+        // Add timing to the result
+        result.api_call_duration = apiCallDuration;
+        
+        console.log('Simulation result:', result);
+        console.log(`API call took ${apiCallDuration.toFixed(2)} seconds`);
+
+        // Check if the status is success
+        if (result.status === 'success') {
+          if (onSimulationSuccess) {
+              onSimulationSuccess(result);
+          }
         }
       }
     } catch (error) {
-      console.error('Error running simulation:', error);
+      // Use a type guard to safely check for the AbortError (timeout)
+      if (error instanceof Error && error.name === 'AbortError') {
+          console.error('Simulation request timed out after 60 seconds.');
+          alert('The simulation request timed out. The server took too long to respond.');
+      } else {
+          console.error('Error running simulation:', error);
+      }
     } finally {
+      // Ensure the timeout is cleared if the error wasn't an abort (e.g., network error)
+      clearTimeout(timeoutId); 
       setIsSimulating(false); // Re-enable the button
     }
   };
-
+  
   // Remove the enableTabs function as it's no longer needed
   // Tab enabling logic should be handled in the parent component
 
   return (
-    <div className={`h-full bg-card border-r flex flex-col transition-all duration-300 ${isCollapsed ? 'w-12' : 'w-80'} flex-shrink-0`}>
-      <Card className="h-full border-0 rounded-none flex flex-col">
-        {/* Header - Fixed */}
-        <CardHeader className="flex-shrink-0 pb-4">
-          <CardTitle className="flex items-center justify-between">
-            {!isCollapsed && (
-              <div className="flex items-center gap-2">
-                <Settings className="w-5 h-5" />
-                Simulation Controls
-              </div>
-            )}
-            <Button
-              variant="ghost"
-              size="sm"
+    <div style={{ flex: '1 1 0%', overflowY: 'auto', minHeight: 0, position: 'relative' }}>
+      {/* Disabled overlay when simulating */}
+      {isSimulating && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '320px',
+          height: '100vh',
+          backgroundColor: 'rgba(255, 255, 255, 0.9)',
+          zIndex: 1000,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'not-allowed'
+        }}>
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-lg font-semibold text-gray-700">
+              {isCounterfactualMode ? 'Running Comparison...' : 'Running Simulation...'}
+            </p>
+            <p className="text-sm text-gray-500 mt-2">Please wait</p>
+          </div>
+        </div>
+      )}
+      
+      <Card 
+        className="border-0 rounded-none flex flex-col" 
+        style={{ 
+          minHeight: '100%',
+          borderTop: isCounterfactualMode ? '3px solid #3b82f6' : 'none'
+        }}
+      >
+        {/* Header - Fixed with Collapse Button */}
+        <CardHeader 
+          className="flex-shrink-0 pb-4"
+          style={{
+            backgroundColor: isCounterfactualMode ? '#eff6ff' : 'transparent',
+            transition: 'background-color 0.3s ease'
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+            <CardTitle className="flex items-center gap-2">
+              <Settings className="w-5 h-5" />
+              Simulation Controls
+            </CardTitle>
+            <button
               onClick={onToggleCollapse}
-              className="p-1 h-8 w-8"
+              style={{
+                padding: '0.5rem',
+                border: '1px solid #e5e7eb',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                backgroundColor: '#ffffff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
             >
-              {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+          </div>
+          
+          {/* Mode Toggle */}
+          <div className="mt-4 p-3 bg-white rounded-lg border border-gray-200 shadow-sm">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <GitCompare className={`w-4 h-4 ${isCounterfactualMode ? 'text-blue-600' : 'text-gray-400'}`} />
+                <span className="text-sm font-medium">
+                  {isCounterfactualMode ? 'Counterfactual Mode' : 'Standard Mode'}
+                </span>
+              </div>
+              <Switch
+                checked={isCounterfactualMode}
+                onCheckedChange={(checked: boolean) => {
+                  console.log('Switch toggled, new value:', checked);
+                  if (onCounterfactualModeChange) {
+                    console.log('Calling onCounterfactualModeChange with:', checked);
+                    onCounterfactualModeChange(checked);
+                  } else {
+                    console.error('onCounterfactualModeChange is not defined!');
+                  }
+                }}
+              />
+            </div>
+            {/* Debug button - can be removed after testing */}
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-full text-xs"
+              onClick={() => {
+                console.log('Debug button clicked, current mode:', isCounterfactualMode);
+                if (onCounterfactualModeChange) {
+                  onCounterfactualModeChange(!isCounterfactualMode);
+                }
+              }}
+            >
+              {isCounterfactualMode ? 'Switch to Standard Mode' : 'Switch to Counterfactual Mode'}
             </Button>
-          </CardTitle>
+            {isCounterfactualMode && (
+              <p className="text-xs text-blue-600 mt-2">
+                📊 Compare response metrics with hypothetical station placement
+              </p>
+            )}
+          </div>
         </CardHeader>
 
-        {/* Scrollable Content - Only show when not collapsed */}
-        {!isCollapsed && (
-          <CardContent className="flex-1 overflow-y-auto space-y-6">
+        {/* Scrollable Content */}
+        <CardContent className="space-y-6 pb-6">
           {/* Clear Settings Button */}
           <div className="space-y-4">
             <Button
@@ -750,69 +1017,213 @@ export function ControlPanel({
           <div className="space-y-4">
             <h4 className="font-semibold text-gray-900">Input</h4>
             
-            {/* Station Data */}
+            {/* Station Data - Hidden in Counterfactual Mode */}
+            {!isCounterfactualMode && (
+              <div>
+                <Label>Station Data</Label>
+                <div className="mt-2">
+                  <select
+                    value={selectedStationData || ''}
+                    onChange={(e) => onStationDataChange?.(e.target.value)}
+                    className="w-full p-2 border rounded text-gray-400"
+                    style={{ color: selectedStationData ? '#111827' : '#9CA3AF' }}
+                  >
+                    <option value="" disabled className="text-gray-400">Select station data</option>
+                    {controlPanelConfig.stationData.options.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.name}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {selectedStationData 
+                      ? controlPanelConfig.stationData.options.find(opt => opt.id === selectedStationData)?.description
+                      : 'Select station data'
+                    }
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Optimized Stations Options - Show when optimized_stations is selected in either mode */}
+            {selectedStationData === 'optimized_stations' && !isCounterfactualMode && (
+              <div className="space-y-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <h5 className="font-medium text-blue-900">Optimization Parameters</h5>
+                
+                {/* Grid Size Selection */}
+                <div>
+                  <Label>Grid Size</Label>
+                  <div className="mt-2">
+                    <select
+                      value={selectedGridSize || '1_mile'}
+                      onChange={(e) => onGridSizeChange?.(e.target.value)}
+                      className="w-full p-2 border rounded"
+                    >
+                      <option value="0.5_mile">0.5 Mile Grid</option>
+                      <option value="1_mile">1 Mile Grid</option>
+                    </select>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Grid resolution for station optimization
+                    </p>
+                  </div>
+                </div>
+
+                {/* Number of New Stations */}
+                <div>
+                  <Label>Number of New Stations</Label>
+                  <div className="mt-2">
+                    <select
+                      value={selectedNewStations || 1}
+                      onChange={(e) => onNewStationsChange?.(parseInt(e.target.value))}
+                      className="w-full p-2 border rounded"
+                    >
+                      {(() => {
+                        // Get max stations for current grid size
+                        const optimizedOption = controlPanelConfig.stationData.options.find(opt => opt.id === 'optimized_stations');
+                        const currentGrid = optimizedOption?.gridSizes?.find(grid => grid.id === (selectedGridSize || '1_mile'));
+                        const maxStations = currentGrid?.maxNewStations || 5;
+                        
+                        return Array.from({ length: maxStations }, (_, i) => i + 1).map(num => (
+                          <option key={num} value={num}>
+                            {num} New Station{num > 1 ? 's' : ''}
+                          </option>
+                        ));
+                      })()}
+                    </select>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Additional optimized stations (1 Engine + 1 Ambulance each)
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Counterfactual Mode: Configuration */}
+            {isCounterfactualMode && (
+              <div className="space-y-3 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <div className="flex items-center gap-2">
+                  <GitCompare className="w-4 h-4 text-blue-600" />
+                  <h5 className="font-medium text-blue-900">Counterfactual Analysis</h5>
+                </div>
+                <p className="text-xs text-blue-700">
+                  Compare baseline configuration against a hypothetical scenario.
+                </p>
+                <div className="space-y-3">
+                  <div className="bg-white p-2 rounded border border-blue-200">
+                    <p className="text-xs font-medium text-gray-700 mb-1">
+                      📍 Baseline (Fixed)
+                    </p>
+                    <p className="text-xs text-gray-600">
+                      Default Fire Stations
+                    </p>
+                  </div>
+                  
+                  <div>
+                    <Label className="text-xs font-medium text-gray-700">New Station Configuration</Label>
+                    <select
+                      value={selectedStationData || ''}
+                      onChange={(e) => onStationDataChange?.(e.target.value)}
+                      className="w-full p-2 border rounded text-sm mt-1"
+                      style={{ color: selectedStationData ? '#111827' : '#9CA3AF' }}
+                    >
+                      <option value="" disabled className="text-gray-400">Select configuration</option>
+                      <option value="custom_stations">Custom Stations Layout</option>
+                      <option value="optimized_stations">Optimized New Stations</option>
+                    </select>
+                    {selectedStationData === 'custom_stations' && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Add/move stations manually on the map
+                      </p>
+                    )}
+                    {selectedStationData === 'optimized_stations' && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Use algorithmically optimized station placements
+                      </p>
+                    )}
+                  </div>
+                  
+                  {/* Optimized Stations Parameters - Show when optimized is selected */}
+                  {selectedStationData === 'optimized_stations' && (
+                    <div className="space-y-3 p-3 bg-white rounded border border-blue-200">
+                      <h6 className="text-xs font-medium text-gray-700">Optimization Parameters</h6>
+                      
+                      {/* Grid Size Selection */}
+                      <div>
+                        <Label className="text-xs">Grid Size</Label>
+                        <div className="mt-1">
+                          <select
+                            value={selectedGridSize || '1_mile'}
+                            onChange={(e) => onGridSizeChange?.(e.target.value)}
+                            className="w-full p-2 border rounded text-sm"
+                          >
+                            <option value="0.5_mile">0.5 Mile Grid</option>
+                            <option value="1_mile">1 Mile Grid</option>
+                          </select>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Grid resolution for station optimization
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Number of New Stations */}
+                      <div>
+                        <Label className="text-xs">Number of New Stations</Label>
+                        <div className="mt-1">
+                          <select
+                            value={selectedNewStations || 1}
+                            onChange={(e) => onNewStationsChange?.(parseInt(e.target.value))}
+                            className="w-full p-2 border rounded text-sm"
+                          >
+                            {(() => {
+                              const optimizedOption = controlPanelConfig.stationData.options.find(opt => opt.id === 'optimized_stations');
+                              const currentGrid = optimizedOption?.gridSizes?.find(grid => grid.id === (selectedGridSize || '1_mile'));
+                              const maxStations = currentGrid?.maxNewStations || 5;
+                              
+                              return Array.from({ length: maxStations }, (_, i) => i + 1).map(num => (
+                                <option key={num} value={num}>
+                                  {num} New Station{num > 1 ? 's' : ''}
+                                </option>
+                              ));
+                            })()}
+                          </select>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Additional optimized stations (1 Engine + 1 Ambulance each)
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {baselineResults && (
+                    <div className="text-xs text-green-700 bg-green-50 p-2 rounded border border-green-200">
+                      ✓ Baseline captured: {baselineResults.total_incidents || 0} incidents
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+          </div>
+
+          <Separator />
+
+          {/* Incident Type Section */}
+          <div className="space-y-4">
+            <h4 className="font-semibold text-gray-900">Incident Type</h4>
             <div>
-              <Label>Station Data</Label>
+              <Label>Type</Label>
               <div className="mt-2">
                 <select
-                  value={selectedStationData || ''}
-                  onChange={(e) => onStationDataChange?.(e.target.value)}
-                  className="w-full p-2 border rounded text-gray-400"
-                  style={{ color: selectedStationData ? '#111827' : '#9CA3AF' }}
+                  value={selectedIncidentType || 'ems_fire'}
+                  onChange={(e) => onIncidentTypeChange?.(e.target.value)}
+                  className="w-full p-2 border rounded"
+                  style={{ color: '#111827' }}
                 >
-                  <option value="" disabled className="text-gray-400">Select station data</option>
-                  {controlPanelConfig.stationData.options.map((option) => (
-                    <option key={option.id} value={option.id}>
-                      {option.name}
-                    </option>
-                  ))}
+                  <option value="ems_fire">EMS + Fire</option>
+                  <option value="fire">Fire Only</option>
                 </select>
                 <p className="text-xs text-gray-500 mt-1">
-                  {selectedStationData 
-                    ? controlPanelConfig.stationData.options.find(opt => opt.id === selectedStationData)?.description
-                    : 'Select station data'
-                  }
-                </p>
-              </div>
-            </div>
-
-            {/* Date Range Selector */}
-            <div>
-              <Label>Date Range</Label>
-              <div className="mt-2 space-y-2">
-                {/* Start Date */}
-                <div>
-                  <Label className="text-sm text-gray-600">From</Label>
-                  <input
-                    type="date"
-                    value={startDate ? startDate.toISOString().split('T')[0] : ''}
-                    onChange={(e) => {
-                      const date = e.target.value ? new Date(e.target.value) : undefined;
-                      onStartDateChange?.(date);
-                    }}
-                    max={endDate ? endDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0]}
-                    className="w-full p-2 border rounded"
-                  />
-                </div>
-
-                {/* End Date */}
-                <div>
-                  <Label className="text-sm text-gray-600">To</Label>
-                  <input
-                    type="date"
-                    value={endDate ? endDate.toISOString().split('T')[0] : ''}
-                    onChange={(e) => {
-                      const date = e.target.value ? new Date(e.target.value) : undefined;
-                      onEndDateChange?.(date);
-                    }}
-                    min={startDate ? startDate.toISOString().split('T')[0] : undefined}
-                    max={new Date().toISOString().split('T')[0]}
-                    className="w-full p-2 border rounded"
-                  />
-                </div>
-
-                <p className="text-xs text-gray-500">
-                  Select range for incidents
+                  {selectedIncidentType === 'fire' ? 'Fire incidents only' : 'Both EMS and Fire incidents'}
                 </p>
               </div>
             </div>
@@ -849,6 +1260,176 @@ export function ControlPanel({
                 </p>
               </div>
             </div>
+
+            {/* Date Range Selector - Only show when incident model is selected */}
+            {selectedIncidentModel && (
+              <div>
+                <Label>Date Range</Label>
+                <div className="mt-2 space-y-2">
+                  {/* Start Date */}
+                  <div>
+                    <Label className="text-sm text-gray-600">From</Label>
+                    <input
+                      type="date"
+                      value={startDate ? startDate.toISOString().split('T')[0] : ''}
+                      onChange={(e) => {
+                        const date = e.target.value ? new Date(e.target.value) : undefined;
+                        onStartDateChange?.(date);
+                      }}
+                      max={endDate ? endDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0]}
+                      className="w-full p-2 border rounded"
+                    />
+                  </div>
+
+                  {/* End Date */}
+                  <div>
+                    <Label className="text-sm text-gray-600">To</Label>
+                    <input
+                      type="date"
+                      value={endDate ? endDate.toISOString().split('T')[0] : ''}
+                      onChange={(e) => {
+                        const date = e.target.value ? new Date(e.target.value) : undefined;
+                        onEndDateChange?.(date);
+                      }}
+                      min={startDate ? startDate.toISOString().split('T')[0] : undefined}
+                      max={new Date().toISOString().split('T')[0]}
+                      className="w-full p-2 border rounded"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-gray-500">
+                      Select range for incidents
+                    </p>
+                    {startDate && endDate && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={isLoadingIncidents}
+                        onClick={async () => {
+                          try {
+                            setIsLoadingIncidents(true);
+                            setIncidentLoadError(null);
+                            console.log('Manual incident load triggered for:', selectedIncidentModel, startDate, endDate);
+                            
+                            // Import the API instance
+                            const { incidentAPI } = await import('../services/incidentAPI');
+                            
+                            // Check if synthetic incidents are selected
+                            if (selectedIncidentModel === 'synthetic_incidents') {
+                              // Generate synthetic incidents
+                              console.log('Generating synthetic incidents for date range:', startDate, 'to', endDate);
+                              
+                              // Step 1: Generate incidents using the API service
+                              const generateResponse = await incidentAPI.generateIncidents(
+                                selectedStationData || 'default_stations',
+                                {
+                                  start: startDate.toISOString(),
+                                  end: endDate.toISOString()
+                                },
+                                { incidentType: selectedIncidentType } // Include incident type
+                              );
+
+                              if (generateResponse.status !== 'success') {
+                                throw new Error(`Backend failed to generate incidents: ${generateResponse.message}`);
+                              }
+
+                              console.log('Synthetic incidents generated successfully:', generateResponse.data);
+
+                              // Step 2: Parse the generated CSV content directly
+                              if (generateResponse.data && generateResponse.data.csvContent) {
+                                const csvContent = generateResponse.data.csvContent;
+                                
+                                // Parse CSV into incidents array using the existing helper
+                                const incidents = parseCSVToIncidents(csvContent);
+                                
+                                if (incidents.length > 0) {
+                                  onIncidentsChange?.(incidents);
+                                  console.log(`Loaded ${incidents.length} synthetic incidents manually`);
+                                  setIncidentLoadError(null);
+                                  
+                                  // Update the loaded incidents date range
+                                  setLoadedIncidentsDateRange({
+                                    startDate: startDate ? new Date(startDate) : null,
+                                    endDate: endDate ? new Date(endDate) : null
+                                  });
+                                  
+                                  // Create simple stats from the generated incidents
+                                  const stats = {
+                                    total: incidents.length,
+                                    dateRange: {
+                                      start: startDate.toISOString().split('T')[0],
+                                      end: endDate.toISOString().split('T')[0]
+                                    }
+                                  };
+                                  onHistoricalIncidentStatsChange?.(stats);
+                                } else {
+                                  throw new Error('No incidents were generated');
+                                }
+                              } else {
+                                throw new Error('No CSV content received from generation');
+                              }
+                            } else {
+                              // Load historical incidents (existing logic)
+                              const response = await incidentAPI.getIncidents(
+                                selectedIncidentModel!,
+                                {
+                                  dateRange: {
+                                    start: startDate.toISOString().split('T')[0],
+                                    end: endDate.toISOString().split('T')[0]
+                                  },
+                                  incidentType: selectedIncidentType
+                                }
+                              );
+                              
+                              // Update the incidents via the callback if successful
+                              if (response.status === 'success' && response.data) {
+                                onIncidentsChange?.(response.data);
+                                console.log(`Loaded ${response.data.length} historical incidents manually`);
+                                setIncidentLoadError(null);
+                                
+                                // Update the loaded incidents date range
+                                setLoadedIncidentsDateRange({
+                                  startDate: startDate ? new Date(startDate) : null,
+                                  endDate: endDate ? new Date(endDate) : null
+                                });
+                              } else {
+                                const errorMsg = response.message || 'Failed to load incidents';
+                                setIncidentLoadError(errorMsg);
+                                console.error('API call failed:', errorMsg);
+                              }
+                            }
+                          } catch (error) {
+                            const errorMsg = error instanceof Error ? error.message : 'Unknown error occurred';
+                            setIncidentLoadError(errorMsg);
+                            console.error('Failed to load incidents manually:', error);
+                          } finally {
+                            setIsLoadingIncidents(false);
+                          }
+                        }}
+                        className={`ml-2 px-3 py-1 text-xs ${incidentLoadError ? 'border-red-500 text-red-600' : ''}`}
+                      >
+                        {isLoadingIncidents ? (
+                          <>
+                            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-current mr-1"></div>
+                            Loading...
+                          </>
+                        ) : (
+                          selectedIncidentModel === 'synthetic_incidents' ? 'Generate Incidents' : 'Load Incidents'
+                        )}
+                      </Button>
+                    )}
+                  </div>
+                  
+                  {/* Error message display */}
+                  {incidentLoadError && (
+                    <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-600">
+                      <strong>Error:</strong> {incidentLoadError}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Travel Time Model */}
             <div>
@@ -913,11 +1494,22 @@ export function ControlPanel({
                   style={{ color: selectedDispatchPolicy ? '#111827' : '#9CA3AF' }}
                 >
                   <option value="" disabled className="text-gray-400">Select dispatch policy</option>
-                  {controlPanelConfig.dispatchPolicies.options.map((policy) => (
-                    <option key={policy.id} value={policy.id}>
-                      {policy.name}
-                    </option>
-                  ))}
+                  {controlPanelConfig.dispatchPolicies.options.map((policy) => {
+                    const isFirebeats = policy.id === 'firebeats';
+                    const isOptimizedStations = selectedStationData === 'optimized_stations';
+                    const isDisabled = isFirebeats && isOptimizedStations;
+                    
+                    return (
+                      <option 
+                        key={policy.id} 
+                        value={policy.id}
+                        disabled={isDisabled}
+                        className={isDisabled ? 'text-gray-400' : ''}
+                      >
+                        {policy.name}{isDisabled ? ' (Not available for optimized stations)' : ''}
+                      </option>
+                    );
+                  })}
                 </select>
                 <p className="text-xs text-gray-500 mt-1">
                   {selectedDispatchPolicy 
@@ -928,31 +1520,7 @@ export function ControlPanel({
               </div>
             </div>
 
-            {/* Service Zones Data - Only show when Firebeats policy is selected */}
-            {selectedDispatchPolicy === 'firebeats' && (
-              <div>
-                <Label>Service Zones Data</Label>
-                <div className="mt-2">
-                  <select
-                    value={selectedServiceZoneFile || ''}
-                    onChange={(e) => onServiceZoneFileChange?.(e.target.value)}
-                    className="w-full p-2 border rounded text-gray-400"
-                    style={{ color: selectedServiceZoneFile ? '#111827' : '#9CA3AF' }}
-                  >
-                    <option value="" disabled className="text-gray-400">Select service zones</option>
-                    {serviceZoneFiles?.length > 0 ? (
-                      serviceZoneFiles.map((file) => (
-                        <option key={file} value={file}>
-                          {file}
-                        </option>
-                      ))
-                    ) : (
-                      <option disabled>No files available</option>
-                    )}
-                  </select>
-                </div>
-              </div>
-            )}
+
           </div>
 
           <Separator />
@@ -1008,24 +1576,37 @@ export function ControlPanel({
           </div>
 
           <Separator /> */}
+          
+          <Separator />
 
           {/* Run Simulation Button */}
           <div className="pt-4 space-y-3">
             <Button
               onClick={handleRunSimulation}
               disabled={isSimulating || !isFormValid()}
-              className={`w-full h-12 ${!isFormValid() && !isSimulating ? 'opacity-50 cursor-not-allowed' : ''}`}
+              className="w-full h-12 font-semibold"
+              style={{
+                backgroundColor: !isFormValid() && !isSimulating 
+                  ? '#d1d5db' 
+                  : isCounterfactualMode 
+                    ? '#2563eb' 
+                    : '#16a34a',
+                color: 'white',
+                border: !isFormValid() && !isSimulating ? '2px solid #9ca3af' : 'none',
+                opacity: !isFormValid() && !isSimulating ? 0.7 : 1,
+                cursor: !isFormValid() && !isSimulating ? 'not-allowed' : 'pointer'
+              }}
               size="lg"
             >
               {isSimulating ? (
                 <>
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  SIMULATING...
+                  {isCounterfactualMode ? 'RUNNING COMPARISON...' : 'SIMULATING...'}
                 </>
               ) : (
                 <>
-                  <Play className="w-4 h-4 mr-2" />
-                  RUN SIMULATION
+                  {isCounterfactualMode ? <GitCompare className="w-4 h-4 mr-2" /> : <Play className="w-4 h-4 mr-2" />}
+                  {isCounterfactualMode ? 'RUN COMPARISON' : 'RUN SIMULATION'}
                 </>
               )}
             </Button>
@@ -1033,11 +1614,11 @@ export function ControlPanel({
             {/* Validation message area with consistent height */}
             <div className="min-h-[3rem] flex items-center justify-center">
               {!isFormValid() && !isSimulating && (
-                <div className="text-xs text-gray-500 text-center">
-                  <div className="text-red-500 font-medium">
-                    Missing:
+                <div className="text-xs text-center">
+                  <div className="text-red-600 font-semibold bg-red-50 border border-red-200 rounded p-2">
+                    <p className="font-bold mb-1">Missing Required Fields:</p>
                     {getMissingFields().map((field, index) => (
-                      <p key={index} className="mt-1">{field}</p>
+                      <p key={index} className="mt-1">• {field}</p>
                     ))}
                   </div>
                 </div>
@@ -1056,8 +1637,7 @@ export function ControlPanel({
               SAVE STATION CONFIG
             </Button>
           </div>
-          </CardContent>
-        )}
+        </CardContent>
       </Card>
     </div>
   );

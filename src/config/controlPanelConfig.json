@@ -6,7 +6,7 @@
         "id": "default_stations",
         "name": "Default Fire Stations",
         "source": "api",
-        "endpoint": "/get-stations",
+        "endpoint": "/api/stations/get-stations",
         "description": "Standard fire station locations",
         "grids": "custom_grid.geojson",
         "zones": "beats_shpfile_merged.geojson",
@@ -21,6 +21,31 @@
         "grids": "custom_grid.geojson",
         "zones": "beats_shpfile_merged.geojson",
         "stations": "stations.csv"
+      },
+      {
+        "id": "optimized_stations",
+        "name": "Optimized with New Stations",
+        "source": "optimized",
+        "endpoint": null,
+        "description": "Existing stations plus optimized new station locations",
+        "zones": "beats_shpfile_merged.geojson",
+        "stations": "stations.csv",
+        "supportsGridSize": true,
+        "supportsNewStations": true,
+        "gridSizes": [
+          {
+            "id": "0.5_mile",
+            "name": "0.5 Mile Grid",
+            "maxNewStations": 5,
+            "grids": "dav_grids_05miles.geojson"
+          },
+          {
+            "id": "1_mile", 
+            "name": "1 Mile Grid",
+            "maxNewStations": 5,
+            "grids": "dav_grids_1miles.geojson"
+          }
+        ]
       }
     ]
   },
@@ -31,17 +56,20 @@
         "id": "historical_incidents",
         "name": "Historical Incident Data",
         "source": "api",
-        "endpoint": "/process-incidents",
+        "endpoint": "/api/incidents/get-incidents",
         "description": "Real historical incident patterns",
-        "dataFile": "/incidents.csv"
+        "supportsDateRange": true,
+        "supportsFiltering": true
       },
       {
         "id": "synthetic_incidents",
         "name": "Synthetic Incident Model",
-        "source": "generated",
-        "endpoint": "/generate-incidents",
+        "source": "api",
+        "endpoint": "/api/incidents/get-incidents",
         "description": "AI-generated incident scenarios",
-        "dataFile": "/synth-incidents.csv"
+        "supportsDateRange": true,
+        "supportsFiltering": true,
+        "requiresGeneration": true
       }
     ]
   },
@@ -53,7 +81,7 @@
         "name": "OSRM-based Travel Times",
         "source": "calculation",
         "endpoint": null,
-        "description": "Straight-line distance calculation",
+        "description": "Road network-based travel time calculation",
         "formula": "sqrt((x2-x1)^2 + (y2-y1)^2)"
       },
       {
@@ -63,6 +91,14 @@
         "endpoint": null,
         "description": "Grid-based distance calculation",
         "formula": "|x2-x1| + |y2-y1|"
+      },
+      {
+        "id": "INTERPOLATED",
+        "name": "Historical Travel Time Interpolation",
+        "source": "interpolation",
+        "endpoint": null,
+        "description": "Distance-weighted interpolation based on historical service zone data",
+        "method": "spatial-temporal"
       }
     ]
   },
@@ -74,7 +110,7 @@
         "name": "Machine Learning Model",
         "source": "constant",
         "endpoint": null,
-        "description": "Constant service duration",
+        "description": "ML-Based Predicted Service Time",
         "defaultValue": 30,
         "unit": "minutes"
       },
