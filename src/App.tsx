@@ -93,22 +93,25 @@ export default function App() {
     
     // Reset configuration based on mode
     if (isCounterfactualMode) {
-      // In counterfactual mode: baseline is always default, new config starts empty
-      setSelectedStationData(''); // Empty to show "Select configuration" placeholder
-      
-      // Load default stations as baseline - parse CSV directly
+      // Start with empty selection so user sees "Select configuration" placeholder
+      setSelectedStationData('');
+    } else {
+      setSelectedStationData(controlPanelConfig.stationData.default);
+    }
+
+    if (isCounterfactualMode) {
+      // Load default stations as baseline for comparison - parse CSV directly
       const loadBaselineStations = async () => {
         try {
-          // Load the CSV file directly
           const response = await fetch('/data/stations.csv');
           if (response.ok) {
             const csvText = await response.text();
             const lines = csvText.trim().split('\n');
             const headers = lines[0].split(',');
-            
+
             const stations = [];
             const apparatusCounts = new Map();
-            
+
             for (let i = 1; i < lines.length; i++) {
               const values = lines[i].split(',');
               const station: any = {
@@ -118,7 +121,7 @@ export default function App() {
                 lat: parseFloat(values[2]),
                 lon: parseFloat(values[3])
               };
-              
+
               // Extract apparatus counts
               const apparatus: any = {};
               const apparatusHeaders = ['Engine_ID', 'Truck', 'Rescue', 'Hazard', 'Squad', 'FAST', 'Medic', 'Brush', 'Boat', 'UTV', 'REACH', 'Chief'];
@@ -131,11 +134,11 @@ export default function App() {
                   }
                 }
               });
-              
+
               stations.push(station);
               apparatusCounts.set(station.id, apparatus);
             }
-            
+
             console.log('Loaded baseline stations:', stations.length);
             console.log('First baseline station:', stations[0]);
             setBaselineStations(stations);
@@ -146,18 +149,11 @@ export default function App() {
         }
       };
       loadBaselineStations();
-    } else {
-      // In standard mode: reset to default
-      setSelectedStationData(controlPanelConfig.stationData.default);
     }
-    
+
     setSelectedIncidentModel(controlPanelConfig.incidentModels.default);
     setSelectedDispatchPolicy(controlPanelConfig.dispatchPolicies.default);
     setSelectedServiceZoneFile('');
-    setStations([]);
-    setStationApparatus(new Map());
-    setStationApparatusCounts(new Map());
-    setOriginalApparatusCounts(new Map());
     setSimulationResults(null);
     setHasResults(false);
     
